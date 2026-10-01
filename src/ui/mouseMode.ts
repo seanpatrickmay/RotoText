@@ -25,28 +25,37 @@ export function pointerToEye(
 }
 
 export interface MouseModeHandle {
+  /** Re-emit the current eye, e.g. after the frame changed. */
+  refresh(): void;
   detach(): void;
 }
+
+/** Events inside the debug panel or camera inset must not steer the eye. */
+const inPanel = (t: EventTarget | null): boolean => t instanceof Element && t.closest('#debug, #inset') !== null;
 
 /** Pointer/finger position stands in for the eye; wheel or pinch changes distance. */
 export function attachMouseMode(getFrame: () => ScreenFrame, onEye: (eye: Vec3) => void): MouseModeHandle {
   let pointer: Point2 = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
   let distance = DEFAULT_MOUSE_DISTANCE_MM;
   let pinchStart: { gap: number; distance: number } | null = null;
+  let activeTouches = 0;
 
   const emit = () =>
     onEye(pointerToEye(pointer, { width: window.innerWidth, height: window.innerHeight }, distance, getFrame()));
 
   const onPointerMove = (e: PointerEvent) => {
+    if (!e.isPrimary || activeTouches >= 2 || inPanel(e.target)) return;
     pointer = { x: e.clientX, y: e.clientY };
     emit();
   };
   const onWheel = (e: WheelEvent) => {
+    if (inPanel(e.target)) return;
     e.preventDefault();
     distance = clampDistance(distance + e.deltaY);
     emit();
   };
   const onTouchMove = (e: TouchEvent) => {
+    if (inPanel(e.target)) return;
     if (e.touches.length !== 2) {
       pinchStart = null;
       return;
@@ -54,6 +63,7 @@ export function attachMouseMode(getFrame: () => ScreenFrame, onEye: (eye: Vec3) 
     const a = e.touches[0]!;
     const b = e.touches[1]!;
     const gap = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    if (!(gap > 0)) return;
     if (!pinchStart) pinchStart = { gap, distance };
     else {
       // Spreading fingers brings the virtual eye closer.
@@ -61,22 +71,31 @@ export function attachMouseMode(getFrame: () => ScreenFrame, onEye: (eye: Vec3) 
       emit();
     }
   };
-  const onTouchEnd = () => {
+  const onTouchStart = (e: TouchEvent) => {
+    activeTouches = e.touches.length;
+  };
+  const onTouchEnd = (e: TouchEvent) => {
+    activeTouches = e.touches.length;
     pinchStart = null;
   };
 
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('wheel', onWheel, { passive: false });
   window.addEventListener('touchmove', onTouchMove, { passive: true });
+  window.addEventListener('touchstart', onTouchStart, { passive: true });
   window.addEventListener('touchend', onTouchEnd);
+  window.addEventListener('touchcancel', onTouchEnd);
   emit();
 
   return {
+    refresh: emit,
     detach() {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('wheel', onWheel);
       window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchstart', onTouchStart);
       window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchEnd);
     },
   };
 }

@@ -29,7 +29,7 @@ function render(eye: Vec3): void {
 function remeasure(): void {
   frame = buildScreenFrame(settings, readViewportEnv());
   layout = measureLayout(els.correctedBox);
-  if (lastEye) render(lastEye);
+  mouse.refresh();
 }
 
 function toggleCorrection(): void {
@@ -37,6 +37,8 @@ function toggleCorrection(): void {
   setCorrectionState(els, correctionOn);
   if (lastEye) render(lastEye);
 }
+
+const mouse = attachMouseMode(() => frame, render);
 
 window.addEventListener('resize', remeasure);
 document.addEventListener('fullscreenchange', remeasure);
@@ -50,11 +52,9 @@ setInterval(() => {
   }
 }, 500);
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'Space') {
-    e.preventDefault();
-    toggleCorrection();
-  }
+  if (e.code !== 'Space' || e.repeat) return;
+  if (e.target instanceof Element && e.target.closest('input, select, textarea, button, summary')) return;
+  e.preventDefault();
+  toggleCorrection();
 });
 els.correctedBox.addEventListener('click', toggleCorrection);
-
-attachMouseMode(() => frame, render);

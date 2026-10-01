@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ScreenFrame } from '../../src/geometry/screenSpace';
+import { viewportToScreenMm, type ScreenFrame } from '../../src/geometry/screenSpace';
 import {
   clampDistance,
   MAX_MOUSE_DISTANCE_MM,
@@ -24,6 +24,17 @@ describe('pointerToEye', () => {
     expect(right.x).toBeCloseTo(100 * 0.2 * MOUSE_GAIN, 9);
     const up = pointerToEye({ x: 500, y: 300 }, viewport, 500, frame);
     expect(up.y).toBeCloseTo(100 * 0.2 * MOUSE_GAIN, 9);
+  });
+
+  it('applies the gain about the viewport centre, not the screen origin', () => {
+    const offsetFrame: ScreenFrame = { ...frame, viewportOriginPx: { x: 100, y: 50 } };
+    const centre = viewportToScreenMm({ x: 500, y: 400 }, offsetFrame);
+    const atCentre = pointerToEye({ x: 500, y: 400 }, viewport, 500, offsetFrame);
+    expect(atCentre.x).toBe(centre.x);
+    expect(atCentre.y).toBe(centre.y);
+    const right = pointerToEye({ x: 600, y: 400 }, viewport, 500, offsetFrame);
+    expect(right.x - centre.x).toBeCloseTo(100 * 0.2 * MOUSE_GAIN, 9);
+    expect(right.y).toBe(centre.y);
   });
 
   it('clamps the distance', () => {
