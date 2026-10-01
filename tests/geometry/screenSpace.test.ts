@@ -48,8 +48,14 @@ describe('estimateViewportOrigin', () => {
     expect(estimateViewportOrigin(env, null)).toEqual({ x: 0, y: IPHONE_STATUS_BAR_PX });
   });
 
-  it('is exactly the screen origin in fullscreen', () => {
-    expect(estimateViewportOrigin({ ...desktopEnv, isFullscreen: true }, null)).toEqual({ x: 0, y: 0 });
+  it('offsets fullscreen by the screen height minus the viewport height (notch)', () => {
+    const env: ViewportEnv = { ...desktopEnv, isFullscreen: true, innerHeight: 950 };
+    expect(estimateViewportOrigin(env, null)).toEqual({ x: 0, y: 32 });
+  });
+
+  it('is exactly the screen origin in fullscreen when the viewport fills the screen', () => {
+    const env: ViewportEnv = { ...desktopEnv, isFullscreen: true, innerHeight: desktopEnv.screenHeightPx };
+    expect(estimateViewportOrigin(env, null)).toEqual({ x: 0, y: 0 });
   });
 
   it('lets the debug override replace only the top offset', () => {

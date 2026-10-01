@@ -18,6 +18,8 @@ export interface InsetInfo {
 export interface Inset {
   readonly video: HTMLVideoElement;
   update(info: InsetInfo): void;
+  /** Show or hide the camera feed box without waiting for the next update(). */
+  showFeed(visible: boolean): void;
   /** Disable the mode button and show a progress label while the camera starts. */
   setModeButtonBusy(busy: boolean): void;
   onModeButton(handler: () => void): void;
@@ -85,6 +87,9 @@ export function createInset(root: HTMLElement): Inset {
       ].join('\n');
       modeLabel = info.mode === 'camera' ? 'Mouse mode' : 'Camera mode';
       showModeLabel();
+    },
+    showFeed(visible) {
+      feed.hidden = !visible;
     },
     setModeButtonBusy(next) {
       busy = next;

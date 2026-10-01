@@ -124,8 +124,9 @@ screen-space mm, so we need the viewport's top-left on the physical screen (CSS 
 - iPhone: `(0, 59)` — the status-bar height in CSS px on Dynamic Island iPhones.
   (`env(safe-area-inset-top)` is not reliable inside Safari's browser chrome.)
 - A "viewport top offset" debug slider overrides the y value.
-- The demo has a Fullscreen button (Fullscreen API on desktop), which makes the offset
-  exactly `(0, 0)`; this is the recommended way to present on a MacBook.
+- The demo has a Fullscreen button (Fullscreen API on desktop), which makes the horizontal
+  offset 0 and the vertical offset the screen height minus the viewport height (non-zero
+  below a MacBook notch); this is the recommended way to present on a MacBook.
 
 An error of ~1 cm here only shifts `C` slightly and is tolerable for the demo.
 

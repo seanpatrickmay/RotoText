@@ -170,3 +170,16 @@ body {
   user-select: text;
   white-space: pre-wrap;
 }
+
+/* Phone portrait: a compact inset leaves the uncorrected copy visible, and the
+   Tune panel stops short of the inset (12px gutters x3). Declared last so it
+   overrides the base #inset / #debug rules above. */
+@media (max-aspect-ratio: 1/1) {
+  #inset {
+    width: 112px;
+    font-size: 9px;
+  }
+  #debug {
+    max-width: calc(100vw - 112px - 36px);
+  }
+}

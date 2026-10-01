@@ -76,7 +76,13 @@ function onVideoFrame(nowMs: number, id: number): void {
   lastFrameMs = nowMs;
 
   const video = inset.video;
-  const face = tracker.detect(video, nowMs);
+  let face: ReturnType<FaceTracker['detect']>;
+  try {
+    face = tracker.detect(video, nowMs);
+  } catch (err) {
+    handleDetectError(err, id);
+    return;
+  }
   const eyeCam = face
     ? estimateEye(face, {
         frameWidthPx: video.videoWidth,
@@ -110,6 +116,39 @@ function describeError(err: unknown): string {
   return `Face tracking failed to load (${detail}). Using mouse mode instead.`;
 }
 
+/**
+ * A throwing detect() must not silently kill the frame loop. A GPU failure
+ * rebuilds the tracker on the CPU delegate (no frames are scheduled meanwhile);
+ * anything else falls back to mouse mode with a banner.
+ */
+function handleDetectError(err: unknown, id: number): void {
+  console.error(err);
+  const failed = tracker;
+  if (failed && failed.delegate === 'GPU') {
+    failed.close();
+    tracker = null;
+    createFaceTracker('CPU').then(
+      (cpu) => {
+        if (tracker) {
+          cpu.close();
+        } else {
+          tracker = cpu;
+        }
+        if (id === loopId && mode === 'camera') scheduleFrame(id);
+      },
+      (err2: unknown) => {
+        console.error(err2);
+        if (id !== loopId || mode !== 'camera') return;
+        showBanner(els, describeError(err2));
+        enterMouseMode();
+      },
+    );
+    return;
+  }
+  showBanner(els, describeError(err));
+  enterMouseMode();
+}
+
 function enterMouseMode(): void {
   mode = 'mouse';
   status = null;
@@ -129,6 +168,8 @@ async function enterCameraMode(): Promise<void> {
   inset.setModeButtonBusy(true);
   try {
     hideBanner(els);
+    // rVFC may never fire for a display:none video, so unhide the feed first.
+    inset.showFeed(true);
     stream = await openCamera(inset.video);
     tracker ??= await createFaceTracker();
     mouse?.detach();
@@ -138,10 +179,12 @@ async function enterCameraMode(): Promise<void> {
     targetState = initialTargetState();
     lastFrameMs = null;
     fps = null;
+    render(lastEye ?? restingEye());
     scheduleFrame(++loopId);
   } catch (err) {
     console.error(err);
     showBanner(els, describeError(err));
+    inset.showFeed(false);
     enterMouseMode();
   } finally {
     starting = false;
@@ -188,6 +231,8 @@ window.addEventListener('keydown', (e) => {
   toggleCorrection();
 });
 els.correctedBox.addEventListener('click', toggleCorrection);
+// A mouse click must not focus the Tune <summary>, or Space would toggle the panel.
+document.querySelector('#debug > summary')?.addEventListener('mousedown', (e) => e.preventDefault());
 inset.onModeButton(() => {
   if (mode === 'camera') enterMouseMode();
   else void enterCameraMode();

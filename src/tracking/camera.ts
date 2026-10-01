@@ -11,6 +11,17 @@ export class CameraError extends Error {
   }
 }
 
+/**
+ * A MacBook's sensor is 16:9; asking for 4:3 crops it and narrows the horizontal
+ * field of view, so the face would leave the frame before the 45° demo angle.
+ * The iPhone front camera is fine at 4:3.
+ */
+export function cameraConstraints(isTouch: boolean): MediaTrackConstraints {
+  return isTouch
+    ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+    : { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } };
+}
+
 export async function openCamera(video: HTMLVideoElement): Promise<MediaStream> {
   if (!window.isSecureContext) throw new CameraError('insecure', 'The camera needs HTTPS (or localhost).');
   if (!navigator.mediaDevices?.getUserMedia) throw new CameraError('unsupported', 'This browser has no camera API.');
@@ -18,7 +29,7 @@ export async function openCamera(video: HTMLVideoElement): Promise<MediaStream> 
   let stream: MediaStream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+      video: cameraConstraints(navigator.maxTouchPoints > 0),
       audio: false,
     });
   } catch (err) {

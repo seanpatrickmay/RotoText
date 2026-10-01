@@ -13,7 +13,7 @@ export interface FaceTracker {
 
 const ASSET_BASE = `${import.meta.env.BASE_URL}mediapipe`;
 
-export async function createFaceTracker(): Promise<FaceTracker> {
+export async function createFaceTracker(preferred: Delegate = 'GPU'): Promise<FaceTracker> {
   const fileset = await FilesetResolver.forVisionTasks(`${ASSET_BASE}/wasm`);
   const create = (delegate: Delegate) =>
     FaceLandmarker.createFromOptions(fileset, {
@@ -22,14 +22,18 @@ export async function createFaceTracker(): Promise<FaceTracker> {
       numFaces: 3,
     });
 
-  let delegate: Delegate = 'GPU';
+  let delegate: Delegate = preferred;
   let landmarker: FaceLandmarker;
-  try {
-    landmarker = await create('GPU');
-  } catch (err) {
-    console.warn('GPU delegate failed; falling back to CPU.', err);
-    delegate = 'CPU';
+  if (preferred === 'CPU') {
     landmarker = await create('CPU');
+  } else {
+    try {
+      landmarker = await create('GPU');
+    } catch (err) {
+      console.warn('GPU delegate failed; falling back to CPU.', err);
+      delegate = 'CPU';
+      landmarker = await create('CPU');
+    }
   }
 
   let lastTimestamp: number | null = null;

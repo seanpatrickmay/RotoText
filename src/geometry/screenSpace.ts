@@ -52,7 +52,8 @@ export function cameraToScreen(eyeCam: Vec3, cameraOffsetMm: Point2): Vec3 {
 
 export function estimateViewportOrigin(env: ViewportEnv, topOverridePx: number | null): Point2 {
   let origin: Point2;
-  if (env.isFullscreen) origin = { x: 0, y: 0 };
+  // Fullscreen content sits below a MacBook notch, so y is the leftover screen height.
+  if (env.isFullscreen) origin = { x: 0, y: Math.max(0, env.screenHeightPx - env.innerHeight) };
   else if (env.isTouch) origin = { x: 0, y: IPHONE_STATUS_BAR_PX };
   else origin = { x: env.screenX, y: env.screenY + env.outerHeight - env.innerHeight };
   return topOverridePx === null ? origin : { x: origin.x, y: topOverridePx };
