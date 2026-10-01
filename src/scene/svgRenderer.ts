@@ -1,7 +1,7 @@
 import { projectPoint } from '../geometry/perspective';
 import type { ScreenFrame } from '../geometry/screenSpace';
 import type { Vec3 } from '../geometry/vec3';
-import { depthOpacity, gridLineWidth, type Primitive } from './targets';
+import { depthOpacity, fogColor, gridLineWidth, type Primitive } from './targets';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const GRID_COLOR = '#8a8f98';
@@ -28,12 +28,12 @@ export function createSvgRenderer(svg: SVGSVGElement): SceneRenderer {
           el.setAttribute('stroke', prim.role === 'grid' ? GRID_COLOR : STICK_COLOR);
           el.setAttribute('stroke-width', String(prim.role === 'grid' ? gridLineWidth(prim.depth) : STICK_WIDTH));
           el.setAttribute('stroke-linecap', 'round');
-          el.setAttribute('opacity', String(depthOpacity(prim.depth)));
+          el.setAttribute('stroke-opacity', String(depthOpacity(prim.depth)));
           return { prim, el };
         }
+        // Fog, not alpha: a far disc stays opaque so nothing shows through it.
         const el = document.createElementNS(SVG_NS, 'polygon');
-        el.setAttribute('fill', prim.fill);
-        el.setAttribute('opacity', String(depthOpacity(prim.depth)));
+        el.setAttribute('fill', fogColor(prim.fill, prim.depth));
         return { prim, el };
       });
       svg.replaceChildren(...items.map((i) => i.el));

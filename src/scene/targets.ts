@@ -6,6 +6,8 @@ export const GRID_MM = 25;
 export const DISC_SEGMENTS = 48;
 export const RING_RED = '#e5484d';
 export const RING_WHITE = '#f4f1ea';
+/** The page background (--bg in styles.css); distant discs fog toward it. */
+export const FOG_BG = '#0e0f12';
 
 export interface ViewportRectMm {
   left: number;
@@ -128,6 +130,18 @@ export function buildTargetsScene(rect: ViewportRectMm): Primitive[] {
 
 export function depthOpacity(depth: number): number {
   return depth >= 0 ? 1 : 1 - 0.5 * Math.min(1, -depth / BOX_DEPTH_MM);
+}
+
+/** `hex` mixed toward FOG_BG by how much depthOpacity fades it; unchanged at or in front of the screen. */
+export function fogColor(hex: string, depth: number): string {
+  const k = 1 - depthOpacity(depth);
+  const channel = (h: string, i: number) => parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
+  let out = '#';
+  for (let i = 0; i < 3; i++) {
+    const v = Math.round(channel(hex, i) * (1 - k) + channel(FOG_BG, i) * k);
+    out += v.toString(16).padStart(2, '0');
+  }
+  return out;
 }
 
 export function gridLineWidth(depth: number): number {

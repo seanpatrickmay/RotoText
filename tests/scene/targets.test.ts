@@ -6,6 +6,8 @@ import {
   buildTargetsScene,
   depthOpacity,
   DISC_SEGMENTS,
+  fogColor,
+  FOG_BG,
   gridLineWidth,
   gridStops,
   rectCenter,
@@ -162,5 +164,26 @@ describe('depth cue', () => {
     expect(depthOpacity(-250)).toBeCloseTo(0.5, 12);
     expect(gridLineWidth(0)).toBeCloseTo(1.5, 12);
     expect(gridLineWidth(-250)).toBeCloseTo(0.75, 12);
+  });
+});
+
+describe('fogColor', () => {
+  it('leaves colours at or in front of the screen unchanged', () => {
+    expect(fogColor(RING_RED, 0)).toBe(RING_RED);
+    expect(fogColor(RING_WHITE, 40)).toBe(RING_WHITE);
+  });
+
+  it('mixes exactly half way to the background at the back wall', () => {
+    expect(FOG_BG).toBe('#0e0f12');
+    // (30,47,66) with (14,15,18): every channel sum is even, so the mix is exact.
+    expect(fogColor('#1e2f42', -BOX_DEPTH_MM)).toBe('#161f2a');
+  });
+
+  it('always returns lowercase #rrggbb', () => {
+    for (const hex of [RING_RED, RING_WHITE, '#000000', '#FFFFFF']) {
+      for (const depth of [30, 0, -1, -90, -125, -250, -400]) {
+        expect(fogColor(hex, depth)).toMatch(/^#[0-9a-f]{6}$/);
+      }
+    }
   });
 });

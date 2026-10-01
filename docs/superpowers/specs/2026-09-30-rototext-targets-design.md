@@ -71,9 +71,12 @@ Each target is three concentric discs facing +z at its depth — radii `r`, `0.6
 filled red `#e5484d`, white `#f4f1ea`, red — approximated as 48-gons. Each target has a
 **stick**: a line from its centre straight back to the back wall (same x, y; z → −250).
 
-**Depth cue:** for anything behind the screen, opacity = `1 − 0.5 · (−z / BOX_DEPTH_MM)`;
-line width (px) = `1.5 − 0.75 · (−z / BOX_DEPTH_MM)` for grid lines (z from the line's
-midpoint). Objects in front of the glass use opacity 1.
+**Depth cue:** for anything behind the screen, the cue amount is
+`1 − 0.5 · (−z / BOX_DEPTH_MM)`; line width (px) = `1.5 − 0.75 · (−z / BOX_DEPTH_MM)` for
+grid lines (z from the line's midpoint). Discs are fogged toward the background colour
+`#0e0f12` by `1 −` that amount and drawn opaque (so nothing shows through them and white
+rings stay white); lines use it as stroke opacity. Objects in front of the glass are
+unfogged and fully opaque.
 
 ## 4. Projection (`src/geometry/perspective.ts`, pure)
 
