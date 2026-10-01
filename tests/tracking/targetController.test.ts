@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { vec3, type Vec3 } from '../../src/geometry/vec3';
+import { lerp, vec3, type Vec3 } from '../../src/geometry/vec3';
 import {
   EASE_DURATION_MS,
   FACE_LOST_DELAY_MS,
@@ -11,6 +11,8 @@ import {
 
 const REST = vec3(0, 0, 500);
 const SEEN = vec3(200, 40, 400);
+
+const smoothstep = (k: number) => k * k * (3 - 2 * k);
 
 function expectVecClose(a: Vec3, b: Vec3) {
   expect(a.x).toBeCloseTo(b.x, 9);
@@ -78,5 +80,61 @@ describe('updateTarget', () => {
     const resting = updateTarget(initialTargetState(), null, 0, REST).state;
     const first = updateTarget(resting, SEEN, 100, REST);
     expectVecClose(first.target, REST);
+  });
+
+  it('holds the blended output when a reacquire blend is interrupted', () => {
+    let s = seenAt1000();
+    s = updateTarget(s, null, 3000, REST).state; // long gone → output is REST
+    const fresh = vec3(-100, 0, 300);
+    const first = updateTarget(s, fresh, 3100, REST);
+    const mid = updateTarget(first.state, fresh, 3250, REST); // halfway through blend
+    expectVecClose(mid.target, vec3(-50, 0, 400));
+    const drop = updateTarget(mid.state, null, 3283, REST); // face drops during blend
+    expectVecClose(drop.target, vec3(-50, 0, 400)); // still the blended output
+    expect(drop.status).toBe('holding');
+  });
+
+  it('continues the blend when the face returns within the hold window', () => {
+    let s = seenAt1000();
+    s = updateTarget(s, null, 3000, REST).state;
+    const fresh = vec3(-100, 0, 300);
+    const first = updateTarget(s, fresh, 3100, REST);
+    const mid = updateTarget(first.state, fresh, 3250, REST);
+    const drop = updateTarget(mid.state, null, 3283, REST);
+    const back = updateTarget(drop.state, fresh, 3300, REST);
+    // Blend started at 3100, now at 3300 = 200ms elapsed, continuing
+    const expectedK = smoothstep(200 / REACQUIRE_BLEND_MS);
+    expectVecClose(back.target, lerp(REST, fresh, expectedK));
+    expect(back.status).toBe('tracking');
+  });
+
+  it('eases from the blended output after a long dropout', () => {
+    let s = seenAt1000();
+    s = updateTarget(s, null, 3000, REST).state;
+    const fresh = vec3(-100, 0, 300);
+    const first = updateTarget(s, fresh, 3100, REST);
+    const mid = updateTarget(first.state, fresh, 3250, REST);
+    // From mid state (output = (-50, 0, 400)), lose for long time
+    const half = updateTarget(
+      mid.state,
+      null,
+      3250 + FACE_LOST_DELAY_MS + EASE_DURATION_MS / 2,
+      REST
+    );
+    // Should ease from the blended output (-50, 0, 400) toward REST
+    expectVecClose(half.target, vec3(-25, 0, 450)); // smoothstep(0.5) = 0.5
+  });
+
+  it('blends from the partially eased output when reacquired mid-ease', () => {
+    const s = seenAt1000();
+    // Lose at 1550: 550ms total, 300ms holding then 250ms easing
+    const lostMid = updateTarget(s, null, 1550, REST);
+    expect(lostMid.status).toBe('lost');
+    expectVecClose(lostMid.target, vec3(100, 20, 450)); // eased to halfway
+    // Reacquire at 1600 with fresh measurement
+    const again = updateTarget(lostMid.state, vec3(0, 0, 400), 1600, REST);
+    // Should blend from the eased output (what was on screen)
+    expectVecClose(again.target, vec3(100, 20, 450)); // blend starts at k=0
+    expect(again.status).toBe('tracking');
   });
 });

@@ -7,6 +7,7 @@ export const REACQUIRE_BLEND_MS = 300;
 export type TargetStatus = 'tracking' | 'holding' | 'lost';
 
 export interface TargetState {
+  /** Last eye position output while tracking (possibly blended). */
   lastSeenEye: Vec3 | null;
   lastSeenMs: number;
   lastOutput: Vec3 | null;
@@ -47,7 +48,7 @@ export function updateTarget(state: TargetState, measured: Vec3 | null, nowMs: n
     return {
       target,
       status: 'tracking',
-      state: { lastSeenEye: measured, lastSeenMs: nowMs, lastOutput: target, blendFrom, blendStartMs },
+      state: { lastSeenEye: target, lastSeenMs: nowMs, lastOutput: target, blendFrom, blendStartMs },
     };
   }
 
@@ -65,5 +66,15 @@ export function updateTarget(state: TargetState, measured: Vec3 | null, nowMs: n
     target = k >= 1 ? restingEye : lerp(state.lastSeenEye, restingEye, smoothstep(k));
     status = 'lost';
   }
-  return { target, status, state: { ...state, lastOutput: target, blendFrom: null } };
+  const isHolding = status === 'holding';
+  return {
+    target,
+    status,
+    state: {
+      ...state,
+      lastOutput: target,
+      blendFrom: isHolding ? state.blendFrom : null,
+      blendStartMs: isHolding ? state.blendStartMs : 0,
+    },
+  };
 }
