@@ -3,12 +3,13 @@ import { findPreset, guessPreset } from './geometry/devices';
 import { computeCorrection, viewingStats } from './geometry/projection';
 import { cameraToScreen, layoutToScreenRect } from './geometry/screenSpace';
 import { add, vec3, type Vec3 } from './geometry/vec3';
-import { buildScreenFrame, cameraOffset, settingsFromPreset } from './settings';
+import { buildScreenFrame, cameraOffset, settingsFromPreset, type Settings } from './settings';
 import { CameraError, openCamera, stopCamera } from './tracking/camera';
 import { estimateEye, irisMidpoint, type Landmark2D } from './tracking/eyeEstimator';
 import { createFaceTracker, type FaceTracker } from './tracking/faceTracker';
 import { OneEuroFilter3 } from './tracking/smoothing';
 import { initialTargetState, updateTarget, type TargetStatus } from './tracking/targetController';
+import { createDebugPanel } from './ui/debugPanel';
 import { getDemoElements, hideBanner, measureLayout, readViewportEnv, setCorrectionState, showBanner } from './ui/demo';
 import { createInset, type Mode } from './ui/inset';
 import { attachMouseMode, type MouseModeHandle } from './ui/mouseMode';
@@ -160,6 +161,14 @@ function toggleCorrection(): void {
   setCorrectionState(els, correctionOn);
   if (lastEye) render(lastEye);
 }
+
+function applySettings(next: Settings): void {
+  settings = next;
+  smoother.setParams({ minCutoff: next.minCutoff, beta: next.beta, dCutoff: 1 });
+  remeasure();
+}
+
+createDebugPanel(els.debugBody, settings, applySettings);
 
 window.addEventListener('resize', remeasure);
 document.addEventListener('fullscreenchange', remeasure);
