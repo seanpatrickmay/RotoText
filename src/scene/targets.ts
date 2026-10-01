@@ -112,20 +112,34 @@ function disc(c: Vec3, radius: number, fill: string): Primitive {
 
 const byDepth = (a: Primitive, b: Primitive) => a.depth - b.depth;
 
-/** The whole scene in painter's order: grid, then sticks, then discs, each far → near. */
+/**
+ * A stick from `top` back to the wall, cut at every target depth strictly inside its
+ * run, so each piece sorts against the discs it passes in front of or behind.
+ */
+function stickSegments(top: Vec3): Primitive[] {
+  const cuts = TARGETS.map((t) => t.z)
+    .filter((z) => z < top.z && z > -BOX_DEPTH_MM)
+    .sort((a, b) => b - a);
+  const zs = [top.z, ...cuts.filter((z, i) => z !== cuts[i - 1]), -BOX_DEPTH_MM];
+  const out: Primitive[] = [];
+  for (let i = 1; i < zs.length; i++) out.push(line(vec3(top.x, top.y, zs[i - 1]!), vec3(top.x, top.y, zs[i]!), 'stick'));
+  return out;
+}
+
+/** The whole scene in painter's order: grid, then sticks and discs together, each far → near. */
 export function buildTargetsScene(rect: ViewportRectMm): Primitive[] {
   const width = rect.right - rect.left;
   const height = rect.top - rect.bottom;
   const centre = rectCenter(rect);
-  const sticks: Primitive[] = [];
-  const discs: Primitive[] = [];
+  const objects: Primitive[] = [];
   for (const t of TARGETS) {
     const c = vec3(centre.x + t.fx * width, centre.y + t.fy * height, t.z);
-    sticks.push(line(c, vec3(c.x, c.y, -BOX_DEPTH_MM), 'stick'));
-    DISC_RADII.forEach((k, i) => discs.push(disc(c, t.r * k, DISC_FILLS[i]!)));
+    objects.push(...stickSegments(c));
+    DISC_RADII.forEach((k, i) => objects.push(disc(c, t.r * k, DISC_FILLS[i]!)));
   }
-  // Array.prototype.sort is stable, so each target's discs keep largest-first order.
-  return [...boxGrid(rect).sort(byDepth), ...sticks.sort(byDepth), ...discs.sort(byDepth)];
+  // Array.prototype.sort is stable, so each target's discs keep largest-first order. A
+  // stick piece never spans a target depth, so a disc paints after the piece behind it.
+  return [...boxGrid(rect).sort(byDepth), ...objects.sort(byDepth)];
 }
 
 export function depthOpacity(depth: number): number {

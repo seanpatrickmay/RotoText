@@ -115,9 +115,11 @@ buildTargetsScene(rect: ViewportRectMm): Primitive[]   // sorted far → near (p
 viewportRectMm(frame: ScreenFrame, innerWidth: number, innerHeight: number): ViewportRectMm
 ```
 
-`depth` is the primitive's mean z (used for sorting and the depth cue). Sort order: grid
-lines, then sticks, then target discs, each by ascending z (farthest first); within a
-target, larger disc first.
+`depth` is the primitive's mean z (used for sorting and the depth cue). Each stick is cut
+at every target depth strictly inside its z range, so a stick is several line primitives
+(together spanning the target's z to −250). Sort order: grid lines first, then stick
+segments and target discs together by ascending depth (farthest first); within a target,
+larger disc first.
 
 ## 6. Calibration
 

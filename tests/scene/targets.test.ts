@@ -69,10 +69,9 @@ describe('buildTargetsScene', () => {
     expect(buildTargetsScene(rect)).toEqual(scene);
   });
 
-  it('has 8 targets of 3 discs each, and one stick per target', () => {
+  it('has 8 targets of 3 discs each', () => {
     expect(TARGETS).toHaveLength(8);
     expect(discs).toHaveLength(24);
-    expect(sticks).toHaveLength(8);
     for (const d of discs) {
       if (d.kind !== 'polygon') continue;
       expect(d.points).toHaveLength(DISC_SEGMENTS);
@@ -88,9 +87,39 @@ describe('buildTargetsScene', () => {
       expect(s.a.y).toBeLessThan(rect.top);
       expect(s.a.z).toBeGreaterThanOrEqual(-D);
       expect(s.a.z).toBeLessThanOrEqual(40);
-      expect(s.b).toEqual({ x: s.a.x, y: s.a.y, z: -D });
+      expect(s.b.x).toBe(s.a.x);
+      expect(s.b.y).toBe(s.a.y);
+      expect(s.b.z).toBeLessThan(s.a.z);
     }
     expect(sticks.some((s) => s.a.z > 0)).toBe(true);
+  });
+
+  it("splits each target's stick into contiguous segments that together run from its disc back to the wall", () => {
+    const byTarget = new Map<string, Line[]>();
+    for (const s of sticks) {
+      const key = `${s.a.x},${s.a.y}`;
+      byTarget.set(key, [...(byTarget.get(key) ?? []), s]);
+    }
+    expect(byTarget.size).toBe(8);
+    const tops: number[] = [];
+    for (const segs of byTarget.values()) {
+      segs.sort((p, q) => q.a.z - p.a.z);
+      tops.push(segs[0]!.a.z);
+      expect(segs[segs.length - 1]!.b.z).toBe(-D);
+      for (let i = 1; i < segs.length; i++) expect(segs[i]!.a.z).toBe(segs[i - 1]!.b.z);
+    }
+    expect(tops.sort((p, q) => p - q)).toEqual(TARGETS.map((t) => t.z).sort((p, q) => p - q));
+  });
+
+  it('never lets a stick segment pass through a target depth', () => {
+    for (const s of sticks) {
+      for (const t of TARGETS) {
+        expect(t.z < s.a.z && t.z > s.b.z).toBe(false);
+      }
+    }
+    // Target 7's stick (z +25 to the wall) is cut at every farther target's depth.
+    const seven = sticks.filter((s) => s.a.x === sticks.find((q) => q.a.z === 25)!.a.x);
+    expect(seven.length).toBeGreaterThan(1);
   });
 
   it('puts every grid line on a wall plane and inside the box', () => {
@@ -134,13 +163,26 @@ describe('buildTargetsScene', () => {
     expect(has({ x: R, y: B, z: 0 }, { x: R, y: T, z: 0 })).toBe(true);
   });
 
-  it('is in painter order: grid, then sticks, then discs, each far to near', () => {
-    const rank = (p: Primitive) => (p.kind === 'polygon' ? 2 : p.role === 'stick' ? 1 : 0);
+  it('is in painter order: grid first, then sticks and discs together, far to near', () => {
+    const firstOther = scene.findIndex((p) => !(p.kind === 'line' && p.role === 'grid'));
+    expect(firstOther).toBeGreaterThan(0);
+    expect(scene.slice(firstOther).every((p) => !(p.kind === 'line' && p.role === 'grid'))).toBe(true);
     for (let i = 1; i < scene.length; i++) {
       const prev = scene[i - 1]!;
       const cur = scene[i]!;
-      expect(rank(cur)).toBeGreaterThanOrEqual(rank(prev));
-      if (rank(cur) === rank(prev)) expect(cur.depth).toBeGreaterThanOrEqual(prev.depth);
+      const grids = (p: Primitive) => p.kind === 'line' && p.role === 'grid';
+      if (grids(prev) === grids(cur)) expect(cur.depth).toBeGreaterThanOrEqual(prev.depth);
+    }
+  });
+
+  it("paints a target's discs over the stick segment that ends at them, and a nearer stick over a farther disc", () => {
+    const index = (p: Primitive) => scene.indexOf(p);
+    for (const t of TARGETS) {
+      const targetDiscs = discs.filter((d) => d.kind === 'polygon' && d.depth === t.z);
+      for (const s of sticks) {
+        if (s.b.z >= t.z) expect(index(s)).toBeGreaterThan(index(targetDiscs[0]!));
+        else if (s.a.z <= t.z) expect(index(s)).toBeLessThan(index(targetDiscs[0]!));
+      }
     }
   });
 
