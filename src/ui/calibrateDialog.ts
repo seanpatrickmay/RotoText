@@ -6,6 +6,8 @@ export interface CalibrateDialog {
   setBusy(busy: boolean): void;
   onStart(handler: () => void): void;
   onReset(handler: () => void): void;
+  /** Fires when Cancel is clicked, before the dialog closes. */
+  onCancel(handler: () => void): void;
 }
 
 const PROMPT = 'Sit with your eyes 50 cm from the screen, facing it. Hold still and click Start.';
@@ -27,6 +29,7 @@ export function createCalibrateDialog(root: HTMLElement): CalibrateDialog {
   reset.textContent = 'Reset to preset';
   for (const b of [start, cancel, reset]) b.addEventListener('mousedown', (e) => e.preventDefault());
   root.replaceChildren(prompt, status, start, cancel, reset);
+  const cancelHandlers: Array<() => void> = [];
 
   const dialog: CalibrateDialog = {
     open() {
@@ -49,7 +52,13 @@ export function createCalibrateDialog(root: HTMLElement): CalibrateDialog {
     onReset(handler) {
       reset.addEventListener('click', handler);
     },
+    onCancel(handler) {
+      cancelHandlers.push(handler);
+    },
   };
-  cancel.addEventListener('click', () => dialog.close());
+  cancel.addEventListener('click', () => {
+    for (const handler of cancelHandlers) handler();
+    dialog.close();
+  });
   return dialog;
 }

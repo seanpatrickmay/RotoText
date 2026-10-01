@@ -31,6 +31,8 @@ function withSavedCalibration(s: Settings): Settings {
 let settings = withSavedCalibration(settingsFromPreset(guessPreset(readViewportEnv())));
 /** Iris sizes collected during a calibration run; null when not calibrating. */
 let calibration: { samples: number[]; frameWidthPx: number } | null = null;
+let calibrationTimer: ReturnType<typeof setTimeout> | null = null;
+let closeTimer: ReturnType<typeof setTimeout> | null = null;
 let frame = buildScreenFrame(settings, readViewportEnv());
 let layout = measureLayout(els.correctedBox);
 let scene: SceneName = 'targets';
@@ -180,6 +182,8 @@ function enterMouseMode(): void {
   eyePoint = null;
   fps = null;
   loopId++;
+  abortCalibration();
+  dialog.close();
   if (stream) {
     stopCamera(stream);
     stream = null;
@@ -246,7 +250,18 @@ const panel = createDebugPanel(els.debugBody, settings, applySettings);
 const CALIBRATION_WINDOW_MS = 1000;
 const dialog = createCalibrateDialog(document.getElementById('calibrate')!);
 
+/** Drop any pending run and auto-close timer; nothing is saved or applied. */
+function abortCalibration(): void {
+  if (calibrationTimer !== null) clearTimeout(calibrationTimer);
+  if (closeTimer !== null) clearTimeout(closeTimer);
+  calibrationTimer = null;
+  closeTimer = null;
+  calibration = null;
+  dialog.setBusy(false);
+}
+
 function finishCalibration(): void {
+  calibrationTimer = null;
   const run = calibration;
   calibration = null;
   dialog.setBusy(false);
@@ -261,18 +276,23 @@ function finishCalibration(): void {
   applySettings(next);
   panel.set(next);
   dialog.setStatus(`Calibrated: HFOV ${rounded.toFixed(1)}°`);
-  setTimeout(() => dialog.close(), 1500);
+  closeTimer = setTimeout(() => dialog.close(), 1500);
 }
 
 dialog.onStart(() => {
   if (mode !== 'camera' || calibration) return;
+  if (closeTimer !== null) clearTimeout(closeTimer);
+  closeTimer = null;
   calibration = { samples: [], frameWidthPx: inset.video.videoWidth };
   dialog.setBusy(true);
   dialog.setStatus('Hold still…');
-  setTimeout(finishCalibration, CALIBRATION_WINDOW_MS);
+  calibrationTimer = setTimeout(finishCalibration, CALIBRATION_WINDOW_MS);
 });
 
+dialog.onCancel(abortCalibration);
+
 dialog.onReset(() => {
+  abortCalibration();
   calibrationStore.clear(settings.presetId);
   const preset = findPreset(settings.presetId);
   if (!preset) return;
@@ -282,7 +302,11 @@ dialog.onReset(() => {
   dialog.setStatus(`Reset to preset HFOV ${preset.cameraHfovDeg.toFixed(1)}°`);
 });
 
-inset.onCalibrateButton(() => dialog.open());
+inset.onCalibrateButton(() => {
+  if (closeTimer !== null) clearTimeout(closeTimer);
+  closeTimer = null;
+  dialog.open();
+});
 
 window.addEventListener('resize', remeasure);
 document.addEventListener('fullscreenchange', remeasure);
