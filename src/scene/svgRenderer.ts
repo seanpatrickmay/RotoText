@@ -18,7 +18,14 @@ export interface SceneRenderer {
 const px = (v: number) => v.toFixed(2);
 
 export function createSvgRenderer(svg: SVGSVGElement): SceneRenderer {
-  let items: { prim: Primitive; el: SVGElement }[] = [];
+  // `visible` is the last value written, so unchanged visibility costs no DOM write.
+  let items: { prim: Primitive; el: SVGElement; visible: boolean | null }[] = [];
+
+  const setVisible = (item: { el: SVGElement; visible: boolean | null }, visible: boolean) => {
+    if (item.visible === visible) return;
+    item.visible = visible;
+    item.el.setAttribute('visibility', visible ? 'visible' : 'hidden');
+  };
 
   return {
     setScene(primitives) {
@@ -29,26 +36,27 @@ export function createSvgRenderer(svg: SVGSVGElement): SceneRenderer {
           el.setAttribute('stroke-width', String(prim.role === 'grid' ? gridLineWidth(prim.depth) : STICK_WIDTH));
           el.setAttribute('stroke-linecap', 'round');
           el.setAttribute('stroke-opacity', String(depthOpacity(prim.depth)));
-          return { prim, el };
+          return { prim, el, visible: null };
         }
         // Fog, not alpha: a far disc stays opaque so nothing shows through it.
         const el = document.createElementNS(SVG_NS, 'polygon');
         el.setAttribute('fill', fogColor(prim.fill, prim.depth));
-        return { prim, el };
+        return { prim, el, visible: null };
       });
       svg.replaceChildren(...items.map((i) => i.el));
     },
 
     render(eye, frame) {
-      for (const { prim, el } of items) {
+      for (const item of items) {
+        const { prim, el } = item;
         if (prim.kind === 'line') {
           const a = projectPoint(eye, prim.a, frame);
           const b = projectPoint(eye, prim.b, frame);
           if (!a || !b) {
-            el.setAttribute('visibility', 'hidden');
+            setVisible(item, false);
             continue;
           }
-          el.setAttribute('visibility', 'visible');
+          setVisible(item, true);
           el.setAttribute('x1', px(a.x));
           el.setAttribute('y1', px(a.y));
           el.setAttribute('x2', px(b.x));
@@ -65,7 +73,7 @@ export function createSvgRenderer(svg: SVGSVGElement): SceneRenderer {
           }
           points += `${px(p.x)},${px(p.y)} `;
         }
-        el.setAttribute('visibility', visible ? 'visible' : 'hidden');
+        setVisible(item, visible);
         if (visible) el.setAttribute('points', points);
       }
     },
