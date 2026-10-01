@@ -3,6 +3,8 @@ import { estimateViewportOrigin, type Point2, type ScreenFrame, type ViewportEnv
 import { DEFAULT_ONE_EURO } from './tracking/smoothing';
 
 export const DEFAULT_IRIS_DIAMETER_MM = 11.7;
+/** Eye distance at which the headline is drawn at its layout size. */
+export const DEFAULT_REFERENCE_DISTANCE_MM = 500;
 
 /** Everything the debug panel can tune. Starts from a device preset. */
 export interface Settings {
@@ -16,6 +18,7 @@ export interface Settings {
   viewportTopOffsetPx: number | null;
   minCutoff: number;
   beta: number;
+  referenceDistanceMm: number;
 }
 
 export function settingsFromPreset(p: DevicePreset): Settings {
@@ -29,6 +32,7 @@ export function settingsFromPreset(p: DevicePreset): Settings {
     viewportTopOffsetPx: null,
     minCutoff: DEFAULT_ONE_EURO.minCutoff,
     beta: DEFAULT_ONE_EURO.beta,
+    referenceDistanceMm: DEFAULT_REFERENCE_DISTANCE_MM,
   };
 }
 

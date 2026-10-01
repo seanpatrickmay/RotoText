@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  apparentScale,
   clampEye,
   computeCorrection,
+  MAX_APPARENT_SCALE,
   MAX_VIEW_ANGLE_DEG,
+  MIN_APPARENT_SCALE,
   projectedQuad,
   solveHomography,
   toMatrix3d,
@@ -170,5 +173,46 @@ describe('viewingStats', () => {
     const oblique = viewingStats(vec3(300, 0, 300), vec3(0, 0, 0));
     expect(oblique.angleDeg).toBeCloseTo(45, 9);
     expect(oblique.distanceMm).toBeCloseTo(Math.hypot(300, 300), 9);
+  });
+});
+
+describe('apparentScale', () => {
+  it('is distance over the reference distance, clamped', () => {
+    expect(apparentScale(500, 500)).toBe(1);
+    expect(apparentScale(1000, 500)).toBe(2);
+    expect(apparentScale(100, 500)).toBe(MIN_APPARENT_SCALE);
+    expect(apparentScale(5000, 500)).toBe(MAX_APPARENT_SCALE);
+  });
+});
+
+describe('constant apparent size', () => {
+  const ref = { referenceDistanceMm: 500 };
+  const halfAngle = (eye: Vec3) => {
+    // Frontal view: the projected quad lies in the screen plane, so its half-width
+    // subtends atan(halfWidthMm / distance) at the eye.
+    const quad = projectedQuad(eye, centred, frame, ref)!;
+    const halfWidthMm = ((quad[1].x - quad[0].x) * frame.mmPerPx) / 2;
+    return Math.atan(halfWidthMm / eye.z);
+  };
+
+  it('is the identity at the reference distance', () => {
+    expectAllClose(parseMatrix(computeCorrection(vec3(0, 0, 500), centred, frame, ref)), IDENTITY);
+  });
+
+  it('doubles the on-screen size at twice the reference distance, about the element centre', () => {
+    const quad = projectedQuad(vec3(0, 0, 1000), centred, frame, ref)!;
+    expect(quad[1].x - quad[0].x).toBeCloseTo(2 * centred.width, 9);
+    expect(quad[3].y - quad[0].y).toBeCloseTo(2 * centred.height, 9);
+    expect((quad[0].x + quad[1].x) / 2).toBeCloseTo(centred.width / 2, 9);
+    expect((quad[0].y + quad[3].y) / 2).toBeCloseTo(centred.height / 2, 9);
+  });
+
+  it('subtends the same angle at the eye from different distances', () => {
+    expect(halfAngle(vec3(0, 0, 400))).toBeCloseTo(halfAngle(vec3(0, 0, 900)), 12);
+  });
+
+  it('keeps the physical size when no reference distance is given', () => {
+    const quad = projectedQuad(vec3(0, 0, 1000), centred, frame)!;
+    expect(quad[1].x - quad[0].x).toBeCloseTo(centred.width, 9);
   });
 });

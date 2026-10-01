@@ -12,6 +12,18 @@ export const MAX_VIEW_ANGLE_DEG = 75;
 export const MIN_EYE_Z_MM = 100;
 /** Reject a corner whose depth reaches past 75% of the eye's distance. */
 export const MIN_DEPTH_RATIO = 0.25;
+/** Bounds on the constant-apparent-size scale, so the text can't shrink away or fly off screen. */
+export const MIN_APPARENT_SCALE = 0.5;
+export const MAX_APPARENT_SCALE = 2.5;
+
+export interface ProjectionOptions {
+  /**
+   * Keep the text's apparent (angular) size constant: at this eye distance it is
+   * drawn at its layout size, and it grows or shrinks in proportion to distance.
+   * Omit to keep the text's physical size.
+   */
+  referenceDistanceMm?: number;
+}
 
 /** Corners in order TL, TR, BR, BL. */
 export type Quad<T> = [T, T, T, T];
@@ -28,6 +40,11 @@ export function clampEye(eye: Vec3, center: Vec3): Vec3 {
   const maxLateral = z * Math.tan((MAX_VIEW_ANGLE_DEG * Math.PI) / 180);
   const k = lateral > maxLateral ? maxLateral / lateral : 1;
   return vec3(center.x + d.x * k, center.y + d.y * k, center.z + z);
+}
+
+/** Scale that keeps the apparent size constant, clamped to [MIN_APPARENT_SCALE, MAX_APPARENT_SCALE]. */
+export function apparentScale(distanceMm: number, referenceDistanceMm: number): number {
+  return Math.min(MAX_APPARENT_SCALE, Math.max(MIN_APPARENT_SCALE, distanceMm / referenceDistanceMm));
 }
 
 /** A rectangle the size of the element, centred on it, turned to face the eye. */
@@ -89,11 +106,20 @@ export function toMatrix3d(h: Mat3): string {
 }
 
 /** Where the element's corners must land (element-space px) to look flat from `eye`. */
-export function projectedQuad(eye: Vec3, layout: ElementLayout, frame: ScreenFrame): Quad<Point2> | null {
+export function projectedQuad(
+  eye: Vec3,
+  layout: ElementLayout,
+  frame: ScreenFrame,
+  options: ProjectionOptions = {},
+): Quad<Point2> | null {
   if (!isFiniteVec(eye) || !(layout.width > 0 && layout.height > 0)) return null;
   const rect = layoutToScreenRect(layout, frame);
   const e = clampEye(eye, rect.center);
-  const corners = billboardCorners(e, rect);
+  const k =
+    options.referenceDistanceMm === undefined
+      ? 1
+      : apparentScale(length(sub(e, rect.center)), options.referenceDistanceMm);
+  const corners = billboardCorners(e, { ...rect, widthMm: rect.widthMm * k, heightMm: rect.heightMm * k });
   if (corners.some((q) => e.z - q.z < MIN_DEPTH_RATIO * e.z)) return null;
   return corners.map((q) => {
     const p = screenMmToViewport(projectToScreenPlane(e, q), frame);
@@ -101,8 +127,13 @@ export function projectedQuad(eye: Vec3, layout: ElementLayout, frame: ScreenFra
   }) as Quad<Point2>;
 }
 
-export function computeCorrection(eye: Vec3, layout: ElementLayout, frame: ScreenFrame): string | null {
-  const dst = projectedQuad(eye, layout, frame);
+export function computeCorrection(
+  eye: Vec3,
+  layout: ElementLayout,
+  frame: ScreenFrame,
+  options: ProjectionOptions = {},
+): string | null {
+  const dst = projectedQuad(eye, layout, frame, options);
   if (!dst) return null;
   const src: Quad<Point2> = [
     { x: 0, y: 0 },

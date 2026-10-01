@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { findPreset } from '../src/geometry/devices';
 import type { ViewportEnv } from '../src/geometry/screenSpace';
-import { buildScreenFrame, cameraOffset, DEFAULT_IRIS_DIAMETER_MM, settingsFromPreset } from '../src/settings';
+import {
+  buildScreenFrame,
+  cameraOffset,
+  DEFAULT_IRIS_DIAMETER_MM,
+  DEFAULT_REFERENCE_DISTANCE_MM,
+  settingsFromPreset,
+} from '../src/settings';
 import { DEFAULT_ONE_EURO } from '../src/tracking/smoothing';
 
 const mbp14 = findPreset('mbp-14')!;
@@ -29,7 +35,14 @@ describe('settingsFromPreset', () => {
       viewportTopOffsetPx: null,
       minCutoff: DEFAULT_ONE_EURO.minCutoff,
       beta: DEFAULT_ONE_EURO.beta,
+      referenceDistanceMm: DEFAULT_REFERENCE_DISTANCE_MM,
     });
+  });
+});
+
+describe('DEFAULT_REFERENCE_DISTANCE_MM', () => {
+  it('is 500 mm', () => {
+    expect(DEFAULT_REFERENCE_DISTANCE_MM).toBe(500);
   });
 });
 
