@@ -4,6 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "npm run fetch-assets",
+    "predev:lan": "npm run fetch-assets",
+    "prebuild": "npm run fetch-assets",
     "dev": "vite",
     "dev:lan": "vite --host --mode lan",
     "build": "tsc --noEmit && vite build",
