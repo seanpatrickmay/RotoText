@@ -18,6 +18,8 @@ export interface InsetInfo {
 export interface Inset {
   readonly video: HTMLVideoElement;
   update(info: InsetInfo): void;
+  /** Disable the mode button and show a progress label while the camera starts. */
+  setModeButtonBusy(busy: boolean): void;
   onModeButton(handler: () => void): void;
   onFullscreenButton(handler: () => void): void;
 }
@@ -42,7 +44,16 @@ export function createInset(root: HTMLElement): Inset {
   const fullscreenButton = make('button');
   fullscreenButton.textContent = 'Fullscreen';
   fullscreenButton.hidden = !document.fullscreenEnabled;
+  // A mouse click must not leave focus on a button, or Space would re-click it.
+  for (const button of [modeButton, fullscreenButton]) {
+    button.addEventListener('mousedown', (e) => e.preventDefault());
+  }
   root.replaceChildren(feed, readout, modeButton, fullscreenButton);
+  let busy = false;
+  let modeLabel = '';
+  const showModeLabel = () => {
+    modeButton.textContent = busy ? 'Starting camera…' : modeLabel;
+  };
 
   const ctx = canvas.getContext('2d');
 
@@ -72,7 +83,13 @@ export function createInset(root: HTMLElement): Inset {
         `delegate ${info.delegate ?? '-'}`,
         `device   ${info.presetLabel}`,
       ].join('\n');
-      modeButton.textContent = info.mode === 'camera' ? 'Mouse mode' : 'Camera mode';
+      modeLabel = info.mode === 'camera' ? 'Mouse mode' : 'Camera mode';
+      showModeLabel();
+    },
+    setModeButtonBusy(next) {
+      busy = next;
+      modeButton.disabled = next;
+      showModeLabel();
     },
     onModeButton(handler) {
       modeButton.addEventListener('click', handler);

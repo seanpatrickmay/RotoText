@@ -37,6 +37,8 @@ let mouse: MouseModeHandle | null = null;
 let targetState = initialTargetState();
 /** Bumped on every camera start so a stale frame callback can tell it is stale. */
 let loopId = 0;
+/** True while a camera start is pending (permission prompt, model load). */
+let starting = false;
 
 const headlineCenter = () => layoutToScreenRect(layout, frame).center;
 const restingEye = () => add(headlineCenter(), vec3(0, 0, RESTING_DISTANCE_MM));
@@ -121,6 +123,9 @@ function enterMouseMode(): void {
 }
 
 async function enterCameraMode(): Promise<void> {
+  if (starting) return;
+  starting = true;
+  inset.setModeButtonBusy(true);
   try {
     hideBanner(els);
     stream = await openCamera(inset.video);
@@ -137,6 +142,9 @@ async function enterCameraMode(): Promise<void> {
     console.error(err);
     showBanner(els, describeError(err));
     enterMouseMode();
+  } finally {
+    starting = false;
+    inset.setModeButtonBusy(false);
   }
 }
 
@@ -173,11 +181,13 @@ window.addEventListener('keydown', (e) => {
 els.correctedBox.addEventListener('click', toggleCorrection);
 inset.onModeButton(() => {
   if (mode === 'camera') enterMouseMode();
-  else void enterCameraMode();
+  else render(restingEye());
+void enterCameraMode();
 });
 inset.onFullscreenButton(() => {
   if (document.fullscreenElement) void document.exitFullscreen();
   else void document.documentElement.requestFullscreen();
 });
 
+render(restingEye());
 void enterCameraMode();
