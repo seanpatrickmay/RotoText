@@ -129,7 +129,10 @@ Start."* Buttons: **Start**, **Cancel**, and a **Reset** link that clears the sa
 for the current preset.
 
 **Collection:** after Start, main.ts pushes the larger iris diameter (px) from each tracked
-frame for 1000 ms, plus the frame width. Frames with no face are skipped.
+frame for at least 1000 ms, plus the frame width, then keeps collecting until there are
+`MIN_CALIBRATION_SAMPLES` valid samples (finite and > 0) or `MAX_CALIBRATION_MS = 3000` ms
+have elapsed in total, whichever comes first, and then finishes. Frames with no face are
+skipped.
 
 **Math** (`src/tracking/calibration.ts`):
 

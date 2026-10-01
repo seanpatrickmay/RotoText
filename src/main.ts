@@ -7,7 +7,7 @@ import { add, vec3, type Vec3 } from './geometry/vec3';
 import { buildScreenFrame, cameraOffset, settingsFromPreset, type Settings } from './settings';
 import { createSvgRenderer } from './scene/svgRenderer';
 import { buildTargetsScene, rectCenter, viewportRectMm } from './scene/targets';
-import { CALIBRATION_DISTANCE_MM, hfovFromIris } from './tracking/calibration';
+import { CALIBRATION_DISTANCE_MM, hfovFromIris, MAX_CALIBRATION_MS, MIN_CALIBRATION_SAMPLES } from './tracking/calibration';
 import { CameraError, openCamera, stopCamera } from './tracking/camera';
 import { estimateEye, irisMidpoint, largerIrisDiameterPx, type Landmark2D } from './tracking/eyeEstimator';
 import { createFaceTracker, type FaceTracker } from './tracking/faceTracker';
@@ -30,7 +30,7 @@ function withSavedCalibration(s: Settings): Settings {
 }
 let settings = withSavedCalibration(settingsFromPreset(guessPreset(readViewportEnv())));
 /** Iris sizes collected during a calibration run; null when not calibrating. */
-let calibration: { samples: number[]; frameWidthPx: number } | null = null;
+let calibration: { samples: number[]; frameWidthPx: number; startedMs: number } | null = null;
 let calibrationTimer: ReturnType<typeof setTimeout> | null = null;
 let closeTimer: ReturnType<typeof setTimeout> | null = null;
 let frame = buildScreenFrame(settings, readViewportEnv());
@@ -247,7 +247,9 @@ function applySettings(next: Settings): void {
 
 const panel = createDebugPanel(els.debugBody, settings, applySettings);
 
+/** Collect for at least this long, then until enough samples arrive or MAX_CALIBRATION_MS passes. */
 const CALIBRATION_WINDOW_MS = 1000;
+const CALIBRATION_POLL_MS = 100;
 const dialog = createCalibrateDialog(document.getElementById('calibrate')!);
 
 /** Drop any pending run and auto-close timer; nothing is saved or applied. */
@@ -258,6 +260,19 @@ function abortCalibration(): void {
   closeTimer = null;
   calibration = null;
   dialog.setBusy(false);
+}
+
+/** Ends the run once the minimum window has passed and it has enough valid samples, or time is up. */
+function checkCalibration(): void {
+  calibrationTimer = null;
+  if (!calibration) return;
+  const elapsed = performance.now() - calibration.startedMs;
+  const valid = calibration.samples.filter((v) => Number.isFinite(v) && v > 0).length;
+  if (valid < MIN_CALIBRATION_SAMPLES && elapsed < MAX_CALIBRATION_MS) {
+    calibrationTimer = setTimeout(checkCalibration, Math.min(CALIBRATION_POLL_MS, MAX_CALIBRATION_MS - elapsed));
+    return;
+  }
+  finishCalibration();
 }
 
 function finishCalibration(): void {
@@ -283,10 +298,10 @@ dialog.onStart(() => {
   if (mode !== 'camera' || calibration) return;
   if (closeTimer !== null) clearTimeout(closeTimer);
   closeTimer = null;
-  calibration = { samples: [], frameWidthPx: inset.video.videoWidth };
+  calibration = { samples: [], frameWidthPx: inset.video.videoWidth, startedMs: performance.now() };
   dialog.setBusy(true);
   dialog.setStatus('Hold still…');
-  calibrationTimer = setTimeout(finishCalibration, CALIBRATION_WINDOW_MS);
+  calibrationTimer = setTimeout(checkCalibration, CALIBRATION_WINDOW_MS);
 });
 
 dialog.onCancel(abortCalibration);

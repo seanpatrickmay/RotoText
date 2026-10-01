@@ -2,6 +2,7 @@ import { DEFAULT_IRIS_DIAMETER_MM } from '../settings';
 
 export const CALIBRATION_DISTANCE_MM = 500;
 export const MIN_CALIBRATION_SAMPLES = 15;
+export const MAX_CALIBRATION_MS = 3000;
 export const MIN_HFOV_DEG = 30;
 export const MAX_HFOV_DEG = 120;
 
