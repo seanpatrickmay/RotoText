@@ -12,6 +12,7 @@ import {
   splitEdge,
   type Piece,
 } from '../../src/game/pieces';
+import { findPreset } from '../../src/geometry/devices';
 import { projectPoint } from '../../src/geometry/perspective';
 import { screenMmToViewport, type ScreenFrame } from '../../src/geometry/screenSpace';
 import { vec3, type Vec3 } from '../../src/geometry/vec3';
@@ -22,19 +23,36 @@ interface TestFrame {
   frame: ScreenFrame;
   w: number;
   h: number;
+  /** Webcam height above the screen centre (mm); the camera sits at x = 0. */
+  cameraY: number;
 }
 
 const MBA13 = { mmPerPx: 290.3 / 1470, screenWidthPx: 1470, screenHeightPx: 956 };
+const MBP16_CAMERA_Y = findPreset('mbp-16')!.cameraOffsetMm.y;
+const MBA13_CAMERA_Y = findPreset('mba-13')!.cameraOffsetMm.y;
 const FRAMES: TestFrame[] = [
   {
     name: '16" MacBook Pro, full width',
     frame: { mmPerPx: 345.6 / 1728, screenWidthPx: 1728, screenHeightPx: 1117, viewportOriginPx: { x: 0, y: 117 } },
     w: 1728,
     h: 1000,
+    cameraY: MBP16_CAMERA_Y,
   },
-  { name: '13" MacBook Air, windowed', frame: { ...MBA13, viewportOriginPx: { x: 15, y: 100 } }, w: 1440, h: 800 },
+  {
+    name: '13" MacBook Air, windowed',
+    frame: { ...MBA13, viewportOriginPx: { x: 15, y: 100 } },
+    w: 1440,
+    h: 800,
+    cameraY: MBA13_CAMERA_Y,
+  },
 ];
-const SMALL: TestFrame = { name: '900 x 560 split screen', frame: { ...MBA13, viewportOriginPx: { x: 285, y: 200 } }, w: 900, h: 560 };
+const SMALL: TestFrame = {
+  name: '900 x 560 split screen',
+  frame: { ...MBA13, viewportOriginPx: { x: 285, y: 200 } },
+  w: 900,
+  h: 560,
+  cameraY: MBA13_CAMERA_Y,
+};
 
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
 const moved = (e: Vec3, dx: number, dy: number) => vec3(e.x + dx, e.y + dy, e.z);
@@ -168,11 +186,15 @@ describe(`buildLevel on a ${SMALL.name}`, () => {
 });
 
 describe('level solution eyes', () => {
-  it('stay within the tracker field of view (30 degrees)', () => {
-    for (const l of LEVELS) {
-      expect(Math.hypot(l.offset.x, l.offset.y) / SOLUTION_DISTANCE_MM).toBeLessThanOrEqual(Math.tan(Math.PI / 6));
-    }
-  });
+  const MAX_VERTICAL = (15 * Math.PI) / 180;
+  const MAX_HORIZONTAL = (25 * Math.PI) / 180;
+  for (const tf of [...FRAMES, SMALL]) {
+    it.each(LEVELS.map((l) => [l.name, l] as const))(`%s keeps the solution eye well inside the webcam frame (${tf.name})`, (_n, level) => {
+      const eye = buildLevel(level, viewportRectMm(tf.frame, tf.w, tf.h)).solutionEye;
+      expect(Math.atan2(Math.abs(eye.y - tf.cameraY), eye.z)).toBeLessThanOrEqual(MAX_VERTICAL);
+      expect(Math.atan2(Math.abs(eye.x), eye.z)).toBeLessThanOrEqual(MAX_HORIZONTAL);
+    });
+  }
 });
 
 describe('pieceAt', () => {

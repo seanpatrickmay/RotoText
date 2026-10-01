@@ -97,10 +97,13 @@ tolerance. Depth spread is the difficulty knob.
 | 1 | Ring | 32-gon circle, radius 1 | +100, 0 | 20–100 | 1 |
 | 2 | Triangle | equilateral, circumradius 1, apex up | −120, +40 | 20–140 | 2 |
 | 3 | Arrow | right-pointing block arrow outline | 0, +80 | 30–160 | 3 |
-| 4 | Star | 5-point star outline, inner radius 0.4 | −150, −60 | 30–200 | 4 |
+| 4 | Star | 5-point star outline, inner radius 0.4 | −150, +20 | 30–200 | 4 |
 | 5 | Linked rings | two 24-gon circles r = 0.55, centres (±0.4, 0) | +120, +80 | 30–220 | 5 |
 | 6 | Key | ring bow (16-gon, r = 0.35, centre (−0.55, 0)) + shaft to (0.9, 0) + two teeth down 0.25 at x = 0.55 and 0.8 | +180, 0 | 30–240 | 6 |
 | 7 | ROTO | four stroke letters R, O, T, O, each 0.4 wide × 0.7 tall, 0.1 gaps, centred | −150, +100 | 30–240 | 7 |
+
+Every solution eye stays within 15° vertically and 25° horizontally of the webcam (not of V),
+so the face stays well inside the camera frame.
 
 Exact polyline coordinates live in `shapes.ts`; every outline stays within the unit square.
 Values are a starting point to tune after play-testing.
@@ -184,7 +187,8 @@ stepSession(s: Session, misalignmentPx: number, dtMs: number, levelCount: number
 - From the resting eye `V + 500ẑ`, `misalignmentPx > 40`.
 - From `solutionEye` moved 30 mm in x (and separately in y), `misalignmentPx > 12`.
 - Every lifted endpoint lies inside `rect` (with margin) and `z ∈ [−depthMax, −depthMin]`.
-- `hypot(offset) / SOLUTION_DISTANCE_MM ≤ tan 30°`.
+- Camera-relative: `atan2(|eye.y − camera.y|, eye.z) ≤ 15°` and `atan2(|eye.x|, eye.z) ≤ 25°` for
+  every level on every test frame (camera at `(0, preset.cameraOffsetMm.y)`).
 - Builds are deterministic; every segment length ≤ 25 mm (+1e-9).
 - `pieceAt`: t = 0 → lifted, t = 1 → glass, and the projection from `solutionEye` is constant
   for t ∈ {0, 0.25, 0.5, 1}.
