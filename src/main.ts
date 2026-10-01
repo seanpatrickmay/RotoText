@@ -311,10 +311,14 @@ function gameTick(nowMs: number, id: number): void {
   const dt = lastGameMs === null ? 0 : nowMs - lastGameMs;
   lastGameMs = nowMs;
   const eye = lastEye ?? restingEye();
-  const misalignment = misalignmentPx(eye, level.pieces, frame);
+  let misalignment = misalignmentPx(eye, level.pieces, frame);
   const before = session.levelIndex;
   session = stepSession(session, misalignment, dt, LEVELS.length);
-  if (session.levelIndex !== before) loadLevel();
+  if (session.levelIndex !== before) {
+    loadLevel();
+    // The colour must reflect the new pieces, not the level just solved.
+    misalignment = misalignmentPx(eye, level.pieces, frame);
+  }
   const view = gameView(session, misalignment);
   gameRenderer.render(eye, frame, view);
   hud.update(hudState(view));
