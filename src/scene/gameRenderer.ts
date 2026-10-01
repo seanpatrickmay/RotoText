@@ -38,6 +38,8 @@ export function createGameRenderer(svg: SVGSVGElement): GameRenderer {
   let pieces: { el: SVGLineElement; visible: boolean | null }[] = [];
   let lastColor = '';
   let lastWidth = '';
+  /** Groups stay hidden from setLevel until the first render, so no zero-length line paints as a dot. */
+  let shown = false;
 
   return {
     setLevel(next) {
@@ -46,10 +48,18 @@ export function createGameRenderer(svg: SVGSVGElement): GameRenderer {
       pieces = next.pieces.map(() => ({ el: document.createElementNS(SVG_NS, 'line'), visible: null }));
       ghostGroup.replaceChildren(...ghosts);
       pieceGroup.replaceChildren(...pieces.map((p) => p.el));
+      ghostGroup.setAttribute('visibility', 'hidden');
+      pieceGroup.setAttribute('visibility', 'hidden');
+      shown = false;
     },
 
     render(eye, frame, view) {
       if (!level) return;
+      if (!shown) {
+        ghostGroup.setAttribute('visibility', 'visible');
+        pieceGroup.setAttribute('visibility', 'visible');
+        shown = true;
+      }
       // Colour and width are shared by every piece: set them once on the group.
       if (view.color !== lastColor) {
         pieceGroup.setAttribute('stroke', view.color);
