@@ -107,6 +107,17 @@ describe('buildTargetsScene', () => {
     }
   });
 
+  it('emits each grid segment once, in either direction', () => {
+    const key = (p: Vec3) => `${p.x.toFixed(6)},${p.y.toFixed(6)},${p.z.toFixed(6)}`;
+    const seen = new Set<string>();
+    for (const l of grid) {
+      const [lo, hi] = [key(l.a), key(l.b)].sort();
+      const k = `${lo}|${hi}`;
+      expect(seen.has(k)).toBe(false);
+      seen.add(k);
+    }
+  });
+
   it("includes the box's front edges exactly on the viewport rectangle", () => {
     const has = (a: Vec3, b: Vec3) =>
       grid.some(

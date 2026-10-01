@@ -66,24 +66,35 @@ const line = (a: Vec3, b: Vec3, role: 'grid' | 'stick'): Primitive => ({
   role,
 });
 
+const pointKey = (p: Vec3) => `${p.x.toFixed(6)},${p.y.toFixed(6)},${p.z.toFixed(6)}`;
+
 function boxGrid(r: ViewportRectMm): Primitive[] {
   const D = -BOX_DEPTH_MM;
   const xs = gridStops(r.left, r.right, GRID_MM);
   const ys = gridStops(r.bottom, r.top, GRID_MM);
   const zs = gridStops(D, 0, GRID_MM);
   const out: Primitive[] = [];
+  // Walls share edges; emit each segment once, whichever direction it is drawn.
+  const seen = new Set<string>();
+  const push = (a: Vec3, b: Vec3) => {
+    const [lo, hi] = [pointKey(a), pointKey(b)].sort();
+    const key = `${lo}|${hi}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(line(a, b, 'grid'));
+  };
   // Back wall.
-  for (const x of xs) out.push(line(vec3(x, r.bottom, D), vec3(x, r.top, D), 'grid'));
-  for (const y of ys) out.push(line(vec3(r.left, y, D), vec3(r.right, y, D), 'grid'));
+  for (const x of xs) push(vec3(x, r.bottom, D), vec3(x, r.top, D));
+  for (const y of ys) push(vec3(r.left, y, D), vec3(r.right, y, D));
   // Floor and ceiling.
   for (const y of [r.bottom, r.top]) {
-    for (const x of xs) out.push(line(vec3(x, y, 0), vec3(x, y, D), 'grid'));
-    for (const z of zs) out.push(line(vec3(r.left, y, z), vec3(r.right, y, z), 'grid'));
+    for (const x of xs) push(vec3(x, y, 0), vec3(x, y, D));
+    for (const z of zs) push(vec3(r.left, y, z), vec3(r.right, y, z));
   }
   // Side walls.
   for (const x of [r.left, r.right]) {
-    for (const y of ys) out.push(line(vec3(x, y, 0), vec3(x, y, D), 'grid'));
-    for (const z of zs) out.push(line(vec3(x, r.bottom, z), vec3(x, r.top, z), 'grid'));
+    for (const y of ys) push(vec3(x, y, 0), vec3(x, y, D));
+    for (const z of zs) push(vec3(x, r.bottom, z), vec3(x, r.top, z));
   }
   return out;
 }
