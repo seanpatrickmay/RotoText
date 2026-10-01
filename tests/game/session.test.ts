@@ -51,6 +51,14 @@ describe('stepSession', () => {
     expect(stepSession(s, 5, -50, N).holdMs).toBe(100);
   });
 
+  it('treats a non-finite frame gap as zero', () => {
+    const holding = run(initialSession(), 5, 5);
+    expect(stepSession(holding, 5, NaN, N).holdMs).toBe(200);
+    expect(stepSession(holding, 5, Infinity, N).holdMs).toBe(200);
+    const solving: Session = { levelIndex: 0, phase: 'solving', holdMs: HOLD_MS, phaseMs: 100 };
+    expect(stepSession(solving, 0, NaN, N).phaseMs).toBe(100);
+  });
+
   it('moves to the next level after the flight and pause', () => {
     const solving: Session = { levelIndex: 2, phase: 'solving', holdMs: HOLD_MS, phaseMs: 0 };
     const almost = run(solving, Infinity, (FLY_MS + PAUSE_MS) / 100 - 1, 100);

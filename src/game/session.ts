@@ -28,7 +28,7 @@ const nextLevel = (s: Session, levelCount: number): Session =>
     : { levelIndex: s.levelIndex + 1, phase: 'playing', holdMs: 0, phaseMs: 0 };
 
 export function stepSession(s: Session, misalignmentPx: number, dtMs: number, levelCount: number): Session {
-  const dt = Math.min(Math.max(dtMs, 0), MAX_TICK_MS);
+  const dt = Number.isFinite(dtMs) ? Math.min(Math.max(dtMs, 0), MAX_TICK_MS) : 0;
   if (s.phase === 'done') return s;
   if (s.phase === 'solving') {
     const phaseMs = s.phaseMs + dt;
