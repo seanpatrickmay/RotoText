@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <title>RotoText</title>
+  </head>
+  <body>
+    <main id="stage">
+      <section class="panel">
+        <p class="label">Corrected · <span id="correction-state">ON</span></p>
+        <div class="text-box" id="corrected-box">
+          <h1 class="headline" id="corrected">Read me from anywhere</h1>
+        </div>
+      </section>
+      <section class="panel">
+        <p class="label">Uncorrected</p>
+        <div class="text-box">
+          <h1 class="headline">Read me from anywhere</h1>
+        </div>
+      </section>
+    </main>
+    <p id="banner" hidden></p>
+    <aside id="inset"></aside>
+    <details id="debug">
+      <summary>Tune</summary>
+      <div id="debug-body"></div>
+    </details>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
