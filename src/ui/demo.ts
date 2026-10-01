@@ -7,6 +7,8 @@ export interface DemoElements {
   banner: HTMLElement;
   inset: HTMLElement;
   debugBody: HTMLElement;
+  topbar: HTMLElement;
+  scene: SVGSVGElement;
 }
 
 function byId(id: string): HTMLElement {
@@ -16,6 +18,8 @@ function byId(id: string): HTMLElement {
 }
 
 export function getDemoElements(): DemoElements {
+  const scene = document.getElementById('scene');
+  if (!(scene instanceof SVGSVGElement)) throw new Error('Missing #scene');
   return {
     corrected: byId('corrected'),
     correctedBox: byId('corrected-box'),
@@ -23,6 +27,8 @@ export function getDemoElements(): DemoElements {
     banner: byId('banner'),
     inset: byId('inset'),
     debugBody: byId('debug-body'),
+    topbar: byId('topbar'),
+    scene,
   };
 }
 

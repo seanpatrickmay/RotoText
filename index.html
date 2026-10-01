@@ -9,12 +9,15 @@
     <title>RotoText</title>
   </head>
   <body>
+    <header id="topbar">
+      <button type="button" id="follow-toggle" aria-pressed="true">Following you</button>
+    </header>
     <main id="stage">
       <div class="text-box" id="corrected-box">
         <h1 class="headline" id="corrected">Read me from anywhere</h1>
       </div>
-      <button type="button" id="follow-toggle" aria-pressed="true">Following you</button>
     </main>
+    <svg id="scene" aria-hidden="true"></svg>
     <p id="banner" hidden></p>
     <aside id="inset"></aside>
     <details id="debug">
