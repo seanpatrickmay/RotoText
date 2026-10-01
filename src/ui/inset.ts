@@ -24,6 +24,7 @@ export interface Inset {
   setModeButtonBusy(busy: boolean): void;
   onModeButton(handler: () => void): void;
   onFullscreenButton(handler: () => void): void;
+  onCalibrateButton(handler: () => void): void;
 }
 
 function make<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
@@ -46,11 +47,13 @@ export function createInset(root: HTMLElement): Inset {
   const fullscreenButton = make('button');
   fullscreenButton.textContent = 'Fullscreen';
   fullscreenButton.hidden = !document.fullscreenEnabled;
+  const calibrateButton = make('button');
+  calibrateButton.textContent = 'Calibrate';
   // A mouse click must not leave focus on a button, or Space would re-click it.
-  for (const button of [modeButton, fullscreenButton]) {
+  for (const button of [modeButton, fullscreenButton, calibrateButton]) {
     button.addEventListener('mousedown', (e) => e.preventDefault());
   }
-  root.replaceChildren(feed, readout, modeButton, fullscreenButton);
+  root.replaceChildren(feed, readout, modeButton, fullscreenButton, calibrateButton);
   let busy = false;
   let modeLabel = '';
   const showModeLabel = () => {
@@ -63,6 +66,7 @@ export function createInset(root: HTMLElement): Inset {
     video,
     update(info) {
       feed.hidden = info.mode !== 'camera';
+      calibrateButton.hidden = info.mode !== 'camera';
       if (video.videoWidth > 0 && video.videoHeight > 0) {
         feed.style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
       }
@@ -101,6 +105,9 @@ export function createInset(root: HTMLElement): Inset {
     },
     onFullscreenButton(handler) {
       fullscreenButton.addEventListener('click', handler);
+    },
+    onCalibrateButton(handler) {
+      calibrateButton.addEventListener('click', handler);
     },
   };
 }

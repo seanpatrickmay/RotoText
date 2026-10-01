@@ -1,4 +1,5 @@
 import './styles.css';
+import { createCalibrationStore } from './calibrationStore';
 import { findPreset, guessPreset } from './geometry/devices';
 import { computeCorrection, viewingStats } from './geometry/projection';
 import { cameraToScreen, layoutToScreenRect } from './geometry/screenSpace';
@@ -6,11 +7,13 @@ import { add, vec3, type Vec3 } from './geometry/vec3';
 import { buildScreenFrame, cameraOffset, settingsFromPreset, type Settings } from './settings';
 import { createSvgRenderer } from './scene/svgRenderer';
 import { buildTargetsScene, rectCenter, viewportRectMm } from './scene/targets';
+import { CALIBRATION_DISTANCE_MM, hfovFromIris } from './tracking/calibration';
 import { CameraError, openCamera, stopCamera } from './tracking/camera';
-import { estimateEye, irisMidpoint, type Landmark2D } from './tracking/eyeEstimator';
+import { estimateEye, irisMidpoint, largerIrisDiameterPx, type Landmark2D } from './tracking/eyeEstimator';
 import { createFaceTracker, type FaceTracker } from './tracking/faceTracker';
 import { OneEuroFilter3 } from './tracking/smoothing';
 import { initialTargetState, updateTarget, type TargetStatus } from './tracking/targetController';
+import { createCalibrateDialog } from './ui/calibrateDialog';
 import { createDebugPanel } from './ui/debugPanel';
 import { getDemoElements, hideBanner, measureLayout, readViewportEnv, setFollowState, showBanner } from './ui/demo';
 import { createInset, type Mode } from './ui/inset';
@@ -19,7 +22,15 @@ import { createSceneSwitch, type SceneName } from './ui/sceneSwitch';
 
 const els = getDemoElements();
 const inset = createInset(els.inset);
-let settings = settingsFromPreset(guessPreset(readViewportEnv()));
+const calibrationStore = createCalibrationStore(() => window.localStorage);
+/** A saved calibration for this preset overrides the preset's HFOV. */
+function withSavedCalibration(s: Settings): Settings {
+  const saved = calibrationStore.load(s.presetId);
+  return saved === null ? s : { ...s, cameraHfovDeg: saved };
+}
+let settings = withSavedCalibration(settingsFromPreset(guessPreset(readViewportEnv())));
+/** Iris sizes collected during a calibration run; null when not calibrating. */
+let calibration: { samples: number[]; frameWidthPx: number } | null = null;
 let frame = buildScreenFrame(settings, readViewportEnv());
 let layout = measureLayout(els.correctedBox);
 let scene: SceneName = 'targets';
@@ -105,6 +116,7 @@ function onVideoFrame(nowMs: number, id: number): void {
       })
     : null;
   eyePoint = face ? irisMidpoint(face) : null;
+  if (calibration && face) calibration.samples.push(largerIrisDiameterPx(face, video.videoWidth, video.videoHeight));
   const measured = eyeCam ? cameraToScreen(eyeCam, cameraOffset(settings)) : null;
 
   const step = updateTarget(targetState, measured, nowMs, restingEye());
@@ -221,12 +233,56 @@ function toggleFollowing(): void {
 }
 
 function applySettings(next: Settings): void {
-  settings = next;
-  smoother.setParams({ minCutoff: next.minCutoff, beta: next.beta, dCutoff: 1 });
+  // Switching presets picks up that preset's saved calibration, if any.
+  const resolved = next.presetId !== settings.presetId ? withSavedCalibration(next) : next;
+  settings = resolved;
+  smoother.setParams({ minCutoff: resolved.minCutoff, beta: resolved.beta, dCutoff: 1 });
+  if (resolved !== next) panel.set(resolved);
   remeasure();
 }
 
-createDebugPanel(els.debugBody, settings, applySettings);
+const panel = createDebugPanel(els.debugBody, settings, applySettings);
+
+const CALIBRATION_WINDOW_MS = 1000;
+const dialog = createCalibrateDialog(document.getElementById('calibrate')!);
+
+function finishCalibration(): void {
+  const run = calibration;
+  calibration = null;
+  dialog.setBusy(false);
+  const hfov = run ? hfovFromIris(run.samples, run.frameWidthPx, settings.irisDiameterMm, CALIBRATION_DISTANCE_MM) : null;
+  if (hfov === null) {
+    dialog.setStatus('No steady face found — try again');
+    return;
+  }
+  const rounded = Math.round(hfov * 10) / 10;
+  calibrationStore.save(settings.presetId, rounded);
+  const next = { ...settings, cameraHfovDeg: rounded };
+  applySettings(next);
+  panel.set(next);
+  dialog.setStatus(`Calibrated: HFOV ${rounded.toFixed(1)}°`);
+  setTimeout(() => dialog.close(), 1500);
+}
+
+dialog.onStart(() => {
+  if (mode !== 'camera' || calibration) return;
+  calibration = { samples: [], frameWidthPx: inset.video.videoWidth };
+  dialog.setBusy(true);
+  dialog.setStatus('Hold still…');
+  setTimeout(finishCalibration, CALIBRATION_WINDOW_MS);
+});
+
+dialog.onReset(() => {
+  calibrationStore.clear(settings.presetId);
+  const preset = findPreset(settings.presetId);
+  if (!preset) return;
+  const next = { ...settings, cameraHfovDeg: preset.cameraHfovDeg };
+  applySettings(next);
+  panel.set(next);
+  dialog.setStatus(`Reset to preset HFOV ${preset.cameraHfovDeg.toFixed(1)}°`);
+});
+
+inset.onCalibrateButton(() => dialog.open());
 
 window.addEventListener('resize', remeasure);
 document.addEventListener('fullscreenchange', remeasure);

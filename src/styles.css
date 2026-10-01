@@ -130,6 +130,43 @@ body:not([data-scene='targets']) #scene {
   z-index: 10;
 }
 
+#calibrate {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(90vw, 26rem);
+  padding: 1rem 1.25rem;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  z-index: 11;
+  font-size: 0.95rem;
+}
+
+#calibrate .status {
+  color: var(--accent);
+  min-height: 1.4em;
+}
+
+#calibrate button {
+  font: inherit;
+  background: var(--rule);
+  color: var(--fg);
+  border: 0;
+  border-radius: 6px;
+  padding: 0.4rem 0.9rem;
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+#calibrate .reset {
+  background: transparent;
+  color: var(--muted);
+  text-decoration: underline;
+  padding: 0.4rem 0;
+}
+
 #inset,
 #debug {
   position: fixed;
