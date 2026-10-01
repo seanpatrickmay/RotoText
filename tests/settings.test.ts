@@ -8,7 +8,7 @@ import {
   DEFAULT_REFERENCE_DISTANCE_MM,
   settingsFromPreset,
 } from '../src/settings';
-import { DEFAULT_ONE_EURO } from '../src/tracking/smoothing';
+import { DEFAULT_DEPTH_ONE_EURO, DEFAULT_ONE_EURO } from '../src/tracking/smoothing';
 
 const mbp14 = findPreset('mbp-14')!;
 const env: ViewportEnv = {
@@ -35,6 +35,7 @@ describe('settingsFromPreset', () => {
       viewportTopOffsetPx: null,
       minCutoff: DEFAULT_ONE_EURO.minCutoff,
       beta: DEFAULT_ONE_EURO.beta,
+      depthMinCutoff: DEFAULT_DEPTH_ONE_EURO.minCutoff,
       referenceDistanceMm: DEFAULT_REFERENCE_DISTANCE_MM,
     });
   });

@@ -41,14 +41,17 @@ export function largerIrisDiameterPx(lm: readonly Landmark2D[], w: number, h: nu
 
 export function estimateEye(lm: readonly Landmark2D[], p: EyeEstimateParams): Vec3 | null {
   if (lm.length < LANDMARK_COUNT) return null;
+  return eyeFromIris(largerIrisDiameterPx(lm, p.frameWidthPx, p.frameHeightPx), irisMidpoint(lm), p);
+}
+
+/** The eye in camera space from an iris size (px, possibly smoothed) and the normalised iris midpoint. */
+export function eyeFromIris(irisPx: number, midpoint: Landmark2D, p: EyeEstimateParams): Vec3 | null {
+  if (!(irisPx > 0) || !Number.isFinite(irisPx)) return null;
   const w = p.frameWidthPx;
   const h = p.frameHeightPx;
-  const irisPx = largerIrisDiameterPx(lm, w, h);
-  if (!(irisPx > 0)) return null;
-
   const f = focalLengthPx(w, p.hfovDeg);
   const z = (f * p.irisDiameterMm) / irisPx;
-  const mid = toPx(irisMidpoint(lm), w, h);
+  const mid = toPx(midpoint, w, h);
   return vec3(((mid.x - w / 2) * z) / f, ((mid.y - h / 2) * z) / f, z);
 }
 

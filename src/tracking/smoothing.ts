@@ -10,6 +10,11 @@ export interface OneEuroParams {
 }
 
 export const DEFAULT_ONE_EURO: OneEuroParams = { minCutoff: 1.0, beta: 0.01, dCutoff: 1.0 };
+/**
+ * For the iris diameter in px, which sets depth. A ~21 px iris jitters by about half a
+ * pixel, which is ~12 mm of depth at 50 cm — so depth is smoothed far harder than x/y.
+ */
+export const DEFAULT_DEPTH_ONE_EURO: OneEuroParams = { minCutoff: 0.3, beta: 0.05, dCutoff: 1.0 };
 
 function alpha(cutoffHz: number, dtS: number): number {
   const tau = 1 / (2 * Math.PI * cutoffHz);
@@ -36,6 +41,45 @@ class OneEuroScalar {
     this.x = null;
     this.dx = 0;
   }
+}
+
+/** One-euro filter on a single timestamped value. */
+export class OneEuroFilter1 {
+  private readonly scalar = new OneEuroScalar();
+  private lastMs: number | null = null;
+  private lastOut: number | null = null;
+
+  constructor(private params: OneEuroParams) {}
+
+  setParams(params: OneEuroParams): void {
+    this.params = params;
+  }
+
+  reset(): void {
+    this.scalar.reset();
+    this.lastMs = null;
+    this.lastOut = null;
+  }
+
+  filter(value: number, tMs: number): number {
+    if (!Number.isFinite(value)) return this.lastOut ?? value;
+    if (this.lastOut !== null && this.lastMs !== null && !(tMs > this.lastMs)) return this.lastOut;
+    const dtS = this.lastMs === null ? 0 : (tMs - this.lastMs) / 1000;
+    this.lastMs = tMs;
+    this.lastOut = this.scalar.filter(value, dtS, this.params);
+    return this.lastOut;
+  }
+}
+
+/**
+ * Exponential approach of `from` toward `goal` over `dtMs` with time constant `tauMs`.
+ * Frame-rate independent, so it can run per display frame between camera frames.
+ */
+export function easeToward(from: Vec3, goal: Vec3, dtMs: number, tauMs: number): Vec3 {
+  if (!(dtMs > 0)) return from;
+  if (!(tauMs > 0)) return goal;
+  const k = 1 - Math.exp(-dtMs / tauMs);
+  return vec3(from.x + (goal.x - from.x) * k, from.y + (goal.y - from.y) * k, from.z + (goal.z - from.z) * k);
 }
 
 /** One-euro filter (Casiez et al. 2012) applied per axis. */

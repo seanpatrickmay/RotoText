@@ -9,9 +9,9 @@ import { createSvgRenderer } from './scene/svgRenderer';
 import { buildTargetsScene, rectCenter, viewportRectMm } from './scene/targets';
 import { CALIBRATION_DISTANCE_MM, hfovFromIris, MAX_CALIBRATION_MS, MIN_CALIBRATION_SAMPLES } from './tracking/calibration';
 import { CameraError, openCamera, stopCamera } from './tracking/camera';
-import { estimateEye, irisMidpoint, largerIrisDiameterPx, type Landmark2D } from './tracking/eyeEstimator';
+import { eyeFromIris, irisMidpoint, largerIrisDiameterPx, type Landmark2D } from './tracking/eyeEstimator';
 import { createFaceTracker, type FaceTracker } from './tracking/faceTracker';
-import { OneEuroFilter3 } from './tracking/smoothing';
+import { DEFAULT_DEPTH_ONE_EURO, easeToward, OneEuroFilter1, OneEuroFilter3 } from './tracking/smoothing';
 import { initialTargetState, updateTarget, type TargetStatus } from './tracking/targetController';
 import { createCalibrateDialog } from './ui/calibrateDialog';
 import { createDebugPanel } from './ui/debugPanel';
@@ -41,6 +41,17 @@ let sceneRect = viewportRectMm(frame, window.innerWidth, window.innerHeight);
 const renderer = createSvgRenderer(els.scene);
 renderer.setScene(buildTargetsScene(sceneRect));
 const smoother = new OneEuroFilter3({ minCutoff: settings.minCutoff, beta: settings.beta, dCutoff: 1 });
+/** Smooths the iris size before it becomes depth: the noisiest input by far. */
+const irisSmoother = new OneEuroFilter1({ ...DEFAULT_DEPTH_ONE_EURO, minCutoff: settings.depthMinCutoff });
+/**
+ * The camera delivers ~30 Hz; the display runs at 60–120 Hz. Each display frame eases the
+ * shown eye toward the latest tracked one so the scene glides instead of stepping.
+ */
+const DISPLAY_EASE_MS = 30;
+let goalEye: Vec3 | null = null;
+let lastDisplayMs: number | null = null;
+/** Set by each camera frame so the next display frame re-renders (and refreshes the inset). */
+let displayDirty = false;
 
 /**
  * Following: warp toward the viewer's eye. Static: the text scene is plain, untransformed
@@ -112,8 +123,10 @@ function onVideoFrame(nowMs: number, id: number): void {
     handleDetectError(err, id);
     return;
   }
+  const irisPx = face ? largerIrisDiameterPx(face, video.videoWidth, video.videoHeight) : 0;
+  // Calibration takes the median of raw sizes; only tracking uses the smoothed size.
   const eyeCam = face
-    ? estimateEye(face, {
+    ? eyeFromIris(irisPx > 0 ? irisSmoother.filter(irisPx, nowMs) : irisPx, irisMidpoint(face), {
         frameWidthPx: video.videoWidth,
         frameHeightPx: video.videoHeight,
         hfovDeg: settings.cameraHfovDeg,
@@ -121,14 +134,28 @@ function onVideoFrame(nowMs: number, id: number): void {
       })
     : null;
   eyePoint = face ? irisMidpoint(face) : null;
-  if (calibration && face) calibration.samples.push(largerIrisDiameterPx(face, video.videoWidth, video.videoHeight));
+  if (calibration && face) calibration.samples.push(irisPx);
   const measured = eyeCam ? cameraToScreen(eyeCam, cameraOffset(settings)) : null;
 
   const step = updateTarget(targetState, measured, nowMs, restingEye());
   targetState = step.state;
   status = step.status;
-  render(smoother.filter(step.target, nowMs));
+  goalEye = smoother.filter(step.target, nowMs);
+  displayDirty = true;
   scheduleFrame(id);
+}
+
+function onDisplayFrame(nowMs: number, id: number): void {
+  if (id !== loopId || mode !== 'camera') return;
+  const dt = lastDisplayMs === null ? 0 : nowMs - lastDisplayMs;
+  lastDisplayMs = nowMs;
+  if (goalEye && lastEye) {
+    const next = easeToward(lastEye, goalEye, dt, DISPLAY_EASE_MS);
+    const moved = Math.max(Math.abs(next.x - lastEye.x), Math.abs(next.y - lastEye.y), Math.abs(next.z - lastEye.z));
+    if (displayDirty || moved > 0.005) render(next);
+    displayDirty = false;
+  }
+  requestAnimationFrame((now) => onDisplayFrame(now, id));
 }
 
 function scheduleFrame(id: number): void {
@@ -208,11 +235,16 @@ async function enterCameraMode(): Promise<void> {
     mouse = null;
     mode = 'camera';
     smoother.reset();
+    irisSmoother.reset();
     targetState = initialTargetState();
     lastFrameMs = null;
     fps = null;
     render(lastEye ?? restingEye());
-    scheduleFrame(++loopId);
+    goalEye = lastEye;
+    lastDisplayMs = null;
+    const id = ++loopId;
+    scheduleFrame(id);
+    requestAnimationFrame((now) => onDisplayFrame(now, id));
   } catch (err) {
     console.error(err);
     showBanner(els, describeError(err));
@@ -244,6 +276,7 @@ function applySettings(next: Settings): void {
   const resolved = next.presetId !== settings.presetId ? withSavedCalibration(next) : next;
   settings = resolved;
   smoother.setParams({ minCutoff: resolved.minCutoff, beta: resolved.beta, dCutoff: 1 });
+  irisSmoother.setParams({ ...DEFAULT_DEPTH_ONE_EURO, minCutoff: resolved.depthMinCutoff });
   if (resolved !== next) panel.set(resolved);
   remeasure();
 }

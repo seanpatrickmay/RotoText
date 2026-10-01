@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { vec3, type Vec3 } from '../../src/geometry/vec3';
 import {
   estimateEye,
+  eyeFromIris,
   focalLengthPx,
   irisMidpoint,
   largerIrisDiameterPx,
@@ -134,5 +135,20 @@ describe('largerIrisDiameterPx', () => {
 
   it('is 0 without the iris landmarks', () => {
     expect(largerIrisDiameterPx(synthLandmarks(vec3(0, 0, 400), landscape).slice(0, 468), 640, 480)).toBe(0);
+  });
+});
+
+describe('eyeFromIris', () => {
+  it('matches estimateEye when given the same iris size and midpoint', () => {
+    const lm = synthLandmarks(vec3(40, -25, 450), landscape);
+    const irisPx = largerIrisDiameterPx(lm, landscape.frameWidthPx, landscape.frameHeightPx);
+    expect(eyeFromIris(irisPx, irisMidpoint(lm), landscape)).toEqual(estimateEye(lm, landscape));
+  });
+
+  it('returns null for a non-positive or non-finite iris size', () => {
+    const mid = { x: 0.5, y: 0.5 };
+    expect(eyeFromIris(0, mid, landscape)).toBeNull();
+    expect(eyeFromIris(-3, mid, landscape)).toBeNull();
+    expect(eyeFromIris(NaN, mid, landscape)).toBeNull();
   });
 });

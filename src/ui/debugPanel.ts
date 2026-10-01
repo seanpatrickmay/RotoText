@@ -9,6 +9,7 @@ type NumericKey =
   | 'irisDiameterMm'
   | 'minCutoff'
   | 'beta'
+  | 'depthMinCutoff'
   | 'referenceDistanceMm';
 
 interface SliderSpec {
@@ -28,6 +29,7 @@ const SLIDERS: readonly SliderSpec[] = [
   { key: 'irisDiameterMm', label: 'Iris diameter', min: 9, max: 14, step: 0.1, unit: ' mm' },
   { key: 'minCutoff', label: 'Smoothing min cutoff', min: 0.05, max: 5, step: 0.05, unit: ' Hz' },
   { key: 'beta', label: 'Smoothing beta', min: 0, max: 0.1, step: 0.001, unit: '' },
+  { key: 'depthMinCutoff', label: 'Depth smoothing min cutoff', min: 0.05, max: 3, step: 0.05, unit: ' Hz' },
   { key: 'referenceDistanceMm', label: 'Size reference distance', min: 200, max: 1000, step: 10, unit: ' mm' },
 ];
 
