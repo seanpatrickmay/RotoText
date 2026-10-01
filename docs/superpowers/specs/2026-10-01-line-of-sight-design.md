@@ -177,6 +177,7 @@ stepSession(s: Session, misalignmentPx: number, dtMs: number, levelCount: number
 | Resize / fullscreen / window move | Rebuild the current level for the new `rect`; hold resets |
 | Tab hidden | rAF pauses; `dt` clamp prevents an instant solve on return |
 | Mouse mode | Fully playable; the game loop ticks independently of input events |
+| Mouse mode in the game | Eye distance locked to 500 mm (wheel and pinch ignored) so every level stays solvable |
 
 ## 8. Testing
 

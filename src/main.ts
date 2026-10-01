@@ -1,7 +1,7 @@
 import './styles.css';
 import { misalignmentPx } from './game/alignment';
 import { LEVELS } from './game/levels';
-import { buildLevel } from './game/pieces';
+import { buildLevel, SOLUTION_DISTANCE_MM } from './game/pieces';
 import { gameView, initialSession, resetHold, skipLevel, stepSession, type GameView, type Session } from './game/session';
 import { createGameRenderer } from './scene/gameRenderer';
 import { createGameHud, type GameHudState } from './ui/gameHud';
@@ -236,7 +236,8 @@ function enterMouseMode(): void {
     stopCamera(stream);
     stream = null;
   }
-  mouse ??= attachMouseMode(() => frame, render);
+  mouse ??= attachMouseMode(() => frame, render, { distanceLocked: () => scene === 'game' });
+  if (scene === 'game') mouse.setDistance(SOLUTION_DISTANCE_MM);
 }
 
 async function enterCameraMode(): Promise<void> {
@@ -464,6 +465,8 @@ createSceneSwitch(els.topbar, scene).onChange((next) => {
   remeasure();
   // The session survives switching away, so returning resumes the same level.
   if (next === 'game') {
+    // Every level is solvable only from the solution distance, and the wheel is locked here.
+    mouse?.setDistance(SOLUTION_DISTANCE_MM);
     // Fill the HUD before showing it so it never flashes empty.
     hud.update(hudState(gameView(session, Infinity)));
     startGameLoop();

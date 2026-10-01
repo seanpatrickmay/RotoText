@@ -27,14 +27,23 @@ export function pointerToEye(
 export interface MouseModeHandle {
   /** Re-emit the current eye, e.g. after the frame changed. */
   refresh(): void;
+  /** Set the eye distance (clamped) and re-emit. */
+  setDistance(mm: number): void;
   detach(): void;
 }
 
 /** Events inside the debug panel or camera inset must not steer the eye. */
 const inPanel = (t: EventTarget | null): boolean => t instanceof Element && t.closest('#debug, #inset') !== null;
 
-/** Pointer/finger position stands in for the eye; wheel or pinch changes distance. */
-export function attachMouseMode(getFrame: () => ScreenFrame, onEye: (eye: Vec3) => void): MouseModeHandle {
+/**
+ * Pointer/finger position stands in for the eye; wheel or pinch changes distance, unless
+ * `distanceLocked()` says otherwise (the game fixes it so every level stays solvable).
+ */
+export function attachMouseMode(
+  getFrame: () => ScreenFrame,
+  onEye: (eye: Vec3) => void,
+  options: { distanceLocked?: () => boolean } = {},
+): MouseModeHandle {
   let pointer: Point2 = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
   let distance = DEFAULT_MOUSE_DISTANCE_MM;
   let pinchStart: { gap: number; distance: number } | null = null;
@@ -49,13 +58,17 @@ export function attachMouseMode(getFrame: () => ScreenFrame, onEye: (eye: Vec3) 
     emit();
   };
   const onWheel = (e: WheelEvent) => {
-    if (inPanel(e.target)) return;
+    if (inPanel(e.target) || options.distanceLocked?.()) return;
     e.preventDefault();
     distance = clampDistance(distance + e.deltaY);
     emit();
   };
   const onTouchMove = (e: TouchEvent) => {
     if (inPanel(e.target)) return;
+    if (options.distanceLocked?.()) {
+      pinchStart = null;
+      return;
+    }
     if (e.touches.length !== 2) {
       pinchStart = null;
       return;
@@ -89,6 +102,10 @@ export function attachMouseMode(getFrame: () => ScreenFrame, onEye: (eye: Vec3) 
 
   return {
     refresh: emit,
+    setDistance(mm) {
+      distance = clampDistance(mm);
+      emit();
+    },
     detach() {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('wheel', onWheel);
