@@ -4,8 +4,9 @@ export class CameraError extends Error {
   constructor(
     readonly reason: CameraErrorReason,
     message: string,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = 'CameraError';
   }
 }
@@ -23,14 +24,20 @@ export async function openCamera(video: HTMLVideoElement): Promise<MediaStream> 
   } catch (err) {
     const denied = err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
     throw denied
-      ? new CameraError('denied', 'Camera permission was denied.')
-      : new CameraError('unavailable', 'No usable camera was found.');
+      ? new CameraError('denied', 'Camera permission was denied.', { cause: err })
+      : new CameraError('unavailable', 'No usable camera was found.', { cause: err });
   }
 
   video.muted = true;
   video.playsInline = true;
-  video.srcObject = stream;
-  await video.play();
+  try {
+    video.srcObject = stream;
+    await video.play();
+  } catch (err) {
+    stopCamera(stream);
+    video.srcObject = null;
+    throw new CameraError('unavailable', 'The camera started but the video could not play.', { cause: err });
+  }
   return stream;
 }
 
