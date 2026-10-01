@@ -30,7 +30,7 @@ function withSavedCalibration(s: Settings): Settings {
 }
 let settings = withSavedCalibration(settingsFromPreset(guessPreset(readViewportEnv())));
 /** Iris sizes collected during a calibration run; null when not calibrating. */
-let calibration: { samples: number[]; frameWidthPx: number; startedMs: number } | null = null;
+let calibration: { samples: number[]; frameWidthPx: number; startedMs: number; presetId: string } | null = null;
 let calibrationTimer: ReturnType<typeof setTimeout> | null = null;
 let closeTimer: ReturnType<typeof setTimeout> | null = null;
 let frame = buildScreenFrame(settings, readViewportEnv());
@@ -42,7 +42,10 @@ const renderer = createSvgRenderer(els.scene);
 renderer.setScene(buildTargetsScene(sceneRect));
 const smoother = new OneEuroFilter3({ minCutoff: settings.minCutoff, beta: settings.beta, dCutoff: 1 });
 
-/** Following: warp toward the viewer's eye. Static: plain, untransformed text. */
+/**
+ * Following: warp toward the viewer's eye. Static: the text scene is plain, untransformed
+ * text; the targets scene is rendered from the resting eye (the straight-on view).
+ */
 let following = true;
 let lastTransform = 'none';
 let lastEye: Vec3 | null = null;
@@ -280,13 +283,18 @@ function finishCalibration(): void {
   const run = calibration;
   calibration = null;
   dialog.setBusy(false);
-  const hfov = run ? hfovFromIris(run.samples, run.frameWidthPx, settings.irisDiameterMm, CALIBRATION_DISTANCE_MM) : null;
+  if (!run) return;
+  if (run.presetId !== settings.presetId) {
+    dialog.setStatus('Device changed — try again');
+    return;
+  }
+  const hfov = hfovFromIris(run.samples, run.frameWidthPx, settings.irisDiameterMm, CALIBRATION_DISTANCE_MM);
   if (hfov === null) {
     dialog.setStatus('No steady face found — try again');
     return;
   }
   const rounded = Math.round(hfov * 10) / 10;
-  calibrationStore.save(settings.presetId, rounded);
+  calibrationStore.save(run.presetId, rounded);
   const next = { ...settings, cameraHfovDeg: rounded };
   applySettings(next);
   panel.set(next);
@@ -298,7 +306,7 @@ dialog.onStart(() => {
   if (mode !== 'camera' || calibration) return;
   if (closeTimer !== null) clearTimeout(closeTimer);
   closeTimer = null;
-  calibration = { samples: [], frameWidthPx: inset.video.videoWidth, startedMs: performance.now() };
+  calibration = { samples: [], frameWidthPx: inset.video.videoWidth, startedMs: performance.now(), presetId: settings.presetId };
   dialog.setBusy(true);
   dialog.setStatus('Hold still…');
   calibrationTimer = setTimeout(checkCalibration, CALIBRATION_WINDOW_MS);
@@ -318,6 +326,8 @@ dialog.onReset(() => {
 });
 
 inset.onCalibrateButton(() => {
+  // Reopening mid-run would make a running dialog look idle.
+  if (calibration) return;
   if (closeTimer !== null) clearTimeout(closeTimer);
   closeTimer = null;
   dialog.open();
