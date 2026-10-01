@@ -4,6 +4,7 @@ import {
   estimateEye,
   focalLengthPx,
   irisMidpoint,
+  largerIrisDiameterPx,
   LANDMARK_COUNT,
   largestFace,
   LEFT_IRIS,
@@ -120,5 +121,18 @@ describe('largestFace', () => {
 
   it('returns null when there are no faces', () => {
     expect(largestFace([])).toBeNull();
+  });
+});
+
+describe('largerIrisDiameterPx', () => {
+  it('is the diameter of the larger iris', () => {
+    const eye = vec3(0, 0, 400);
+    const lm = synthLandmarks(eye, landscape, { left: { sx: 0.8, sy: 0.8 } });
+    const expected = (focalLengthPx(landscape.frameWidthPx, landscape.hfovDeg) * landscape.irisDiameterMm) / eye.z;
+    expect(largerIrisDiameterPx(lm, landscape.frameWidthPx, landscape.frameHeightPx)).toBeCloseTo(expected, 9);
+  });
+
+  it('is 0 without the iris landmarks', () => {
+    expect(largerIrisDiameterPx(synthLandmarks(vec3(0, 0, 400), landscape).slice(0, 468), 640, 480)).toBe(0);
   });
 });

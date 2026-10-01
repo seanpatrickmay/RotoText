@@ -33,12 +33,17 @@ export function irisDiameterPx(lm: readonly Landmark2D[], ring: readonly number[
   return Math.max(Math.hypot(a!.x - c!.x, a!.y - c!.y), Math.hypot(b!.x - d!.x, b!.y - d!.y));
 }
 
+/** The larger iris diameter in px: head yaw foreshortens the farther iris. */
+export function largerIrisDiameterPx(lm: readonly Landmark2D[], w: number, h: number): number {
+  if (lm.length < LANDMARK_COUNT) return 0;
+  return Math.max(irisDiameterPx(lm, RIGHT_IRIS, w, h), irisDiameterPx(lm, LEFT_IRIS, w, h));
+}
+
 export function estimateEye(lm: readonly Landmark2D[], p: EyeEstimateParams): Vec3 | null {
   if (lm.length < LANDMARK_COUNT) return null;
   const w = p.frameWidthPx;
   const h = p.frameHeightPx;
-  // Head yaw foreshortens the farther iris, so trust the larger one.
-  const irisPx = Math.max(irisDiameterPx(lm, RIGHT_IRIS, w, h), irisDiameterPx(lm, LEFT_IRIS, w, h));
+  const irisPx = largerIrisDiameterPx(lm, w, h);
   if (!(irisPx > 0)) return null;
 
   const f = focalLengthPx(w, p.hfovDeg);
