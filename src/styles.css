@@ -97,8 +97,83 @@ body[data-scene='targets'] #stage {
   display: none;
 }
 
-body:not([data-scene='targets']) #scene {
+body[data-scene='text'] #scene {
   display: none;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+body:not([data-scene='game']) #game {
+  display: none;
+}
+
+body[data-scene='game'] #stage {
+  display: none;
+}
+
+/* Line of Sight: the box grid stays as depth context, dimmed behind the pieces. */
+body[data-scene='game'] #scene {
+  opacity: 0.35;
+}
+
+/* Static would make every level unsolvable, so the toggle is hidden in the game. */
+body[data-scene='game'] #follow-toggle {
+  display: none;
+}
+
+#game-hud {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  z-index: 6;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--fg);
+  font-size: 0.85rem;
+}
+
+#game-hud[hidden] {
+  display: none;
+}
+
+#game-hud [hidden] {
+  display: none;
+}
+
+#game-hud button {
+  font: inherit;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+#game-hud .track {
+  width: 80px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--rule);
+  overflow: hidden;
+}
+
+#game-hud .fill {
+  width: 0;
+  height: 100%;
+  background: var(--accent);
 }
 
 /* The box is never transformed, so its rect is the headline's layout rect. */

@@ -1,13 +1,13 @@
-export type SceneName = 'targets' | 'text';
+export type SceneName = 'targets' | 'text' | 'game';
 
 export interface SceneSwitch {
   set(scene: SceneName): void;
   onChange(handler: (scene: SceneName) => void): void;
 }
 
-const LABELS: Record<SceneName, string> = { targets: 'Targets', text: 'Text' };
+const LABELS: Record<SceneName, string> = { targets: 'Targets', text: 'Text', game: 'Line of Sight' };
 
-/** A two-button segmented control, prepended to `root`. */
+/** A segmented scene control, prepended to `root`. */
 export function createSceneSwitch(root: HTMLElement, initial: SceneName): SceneSwitch {
   let handler: ((scene: SceneName) => void) | null = null;
   const buttons = (Object.keys(LABELS) as SceneName[]).map((name) => {

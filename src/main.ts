@@ -1,4 +1,10 @@
 import './styles.css';
+import { misalignmentPx } from './game/alignment';
+import { LEVELS } from './game/levels';
+import { buildLevel } from './game/pieces';
+import { gameView, initialSession, resetHold, skipLevel, stepSession, type GameView, type Session } from './game/session';
+import { createGameRenderer } from './scene/gameRenderer';
+import { createGameHud, type GameHudState } from './ui/gameHud';
 import { createCalibrationStore } from './calibrationStore';
 import { findPreset, guessPreset } from './geometry/devices';
 import { computeCorrection, viewingStats } from './geometry/projection';
@@ -6,7 +12,7 @@ import { cameraToScreen, layoutToScreenRect } from './geometry/screenSpace';
 import { add, vec3, type Vec3 } from './geometry/vec3';
 import { buildScreenFrame, cameraOffset, settingsFromPreset, type Settings } from './settings';
 import { createSvgRenderer } from './scene/svgRenderer';
-import { buildTargetsScene, rectCenter, viewportRectMm } from './scene/targets';
+import { buildBoxGrid, buildTargetsScene, rectCenter, viewportRectMm } from './scene/targets';
 import { CALIBRATION_DISTANCE_MM, hfovFromIris, MAX_CALIBRATION_MS, MIN_CALIBRATION_SAMPLES } from './tracking/calibration';
 import { CameraError, openCamera, stopCamera } from './tracking/camera';
 import { eyeFromIris, irisMidpoint, largerIrisDiameterPx, type Landmark2D } from './tracking/eyeEstimator';
@@ -39,7 +45,18 @@ let scene: SceneName = 'targets';
 document.body.dataset.scene = scene;
 let sceneRect = viewportRectMm(frame, window.innerWidth, window.innerHeight);
 const renderer = createSvgRenderer(els.scene);
-renderer.setScene(buildTargetsScene(sceneRect));
+/** Targets shows the full scene; Line of Sight uses the box grid alone as a backdrop. */
+const backdrop = () => (scene === 'game' ? buildBoxGrid(sceneRect) : buildTargetsScene(sceneRect));
+renderer.setScene(backdrop());
+
+let session: Session = initialSession();
+let level = buildLevel(LEVELS[session.levelIndex]!, sceneRect);
+const gameRenderer = createGameRenderer(els.game);
+gameRenderer.setLevel(level);
+const hud = createGameHud(els.gameHud);
+/** Bumped on every entry to the game scene so a stale loop stops itself. */
+let gameLoopId = 0;
+let lastGameMs: number | null = null;
 const smoother = new OneEuroFilter3({ minCutoff: settings.minCutoff, beta: settings.beta, dCutoff: 1 });
 /** Smooths the iris size before it becomes depth: the noisiest input by far. */
 const irisSmoother = new OneEuroFilter1({ ...DEFAULT_DEPTH_ONE_EURO, minCutoff: settings.depthMinCutoff });
@@ -84,8 +101,9 @@ const restingEye = () => add(viewCenter(), vec3(0, 0, settings.referenceDistance
 
 function render(eye: Vec3): void {
   lastEye = eye;
-  if (scene === 'targets') {
-    renderer.render(following ? eye : restingEye(), frame);
+  if (scene !== 'text') {
+    // The game always follows: a static view could never be solved.
+    renderer.render(scene === 'game' || following ? eye : restingEye(), frame);
   } else if (following) {
     // A null result means a degenerate pose: keep the last good transform.
     const t = computeCorrection(eye, layout, frame, { referenceDistanceMm: settings.referenceDistanceMm });
@@ -260,10 +278,63 @@ function remeasure(): void {
   frame = buildScreenFrame(settings, readViewportEnv());
   layout = measureLayout(els.correctedBox);
   sceneRect = viewportRectMm(frame, window.innerWidth, window.innerHeight);
-  renderer.setScene(buildTargetsScene(sceneRect));
+  renderer.setScene(backdrop());
+  // The pieces depend on the viewport rect: rebuild, and drop a hold that no longer applies.
+  loadLevel();
+  session = resetHold(session);
   if (mode === 'mouse' && mouse) mouse.refresh();
   else if (lastEye) render(lastEye);
 }
+
+function loadLevel(): void {
+  level = buildLevel(LEVELS[session.levelIndex]!, sceneRect);
+  gameRenderer.setLevel(level);
+}
+
+function hudState(view: GameView): GameHudState {
+  return {
+    levelIndex: session.levelIndex,
+    levelCount: LEVELS.length,
+    levelName: LEVELS[session.levelIndex]!.name,
+    progress: view.progress,
+    done: session.phase === 'done',
+  };
+}
+
+/**
+ * Runs every display frame while Line of Sight is showing — independently of camera frames
+ * and mouse events, so a hold completes even with a perfectly still pointer.
+ */
+function gameTick(nowMs: number, id: number): void {
+  if (id !== gameLoopId || scene !== 'game') return;
+  const dt = lastGameMs === null ? 0 : nowMs - lastGameMs;
+  lastGameMs = nowMs;
+  const eye = lastEye ?? restingEye();
+  const misalignment = misalignmentPx(eye, level.pieces, frame);
+  const before = session.levelIndex;
+  session = stepSession(session, misalignment, dt, LEVELS.length);
+  if (session.levelIndex !== before) loadLevel();
+  const view = gameView(session, misalignment);
+  gameRenderer.render(eye, frame, view);
+  hud.update(hudState(view));
+  requestAnimationFrame((t) => gameTick(t, id));
+}
+
+function startGameLoop(): void {
+  lastGameMs = null;
+  const id = ++gameLoopId;
+  requestAnimationFrame((t) => gameTick(t, id));
+}
+
+hud.onSkip(() => {
+  const before = session.levelIndex;
+  session = skipLevel(session, LEVELS.length);
+  if (session.levelIndex !== before) loadLevel();
+});
+hud.onRestart(() => {
+  session = initialSession();
+  loadLevel();
+});
 
 function toggleFollowing(): void {
   following = !following;
@@ -379,6 +450,7 @@ setInterval(() => {
 }, 500);
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'Space' || e.repeat) return;
+  if (scene === 'game') return;
   if (e.target instanceof Element && e.target.closest('input, select, textarea, button, summary')) return;
   e.preventDefault();
   toggleFollowing();
@@ -390,6 +462,13 @@ createSceneSwitch(els.topbar, scene).onChange((next) => {
   document.body.dataset.scene = next;
   // The text stage was display:none, so its layout must be measured now.
   remeasure();
+  // The session survives switching away, so returning resumes the same level.
+  if (next === 'game') {
+    // Fill the HUD before showing it so it never flashes empty.
+    hud.update(hudState(gameView(session, Infinity)));
+    startGameLoop();
+  }
+  hud.show(next === 'game');
 });
 // A mouse click must not focus the Tune <summary>, or Space would toggle the panel.
 document.querySelector('#debug > summary')?.addEventListener('mousedown', (e) => e.preventDefault());
