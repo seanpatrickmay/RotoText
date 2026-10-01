@@ -181,8 +181,7 @@ window.addEventListener('keydown', (e) => {
 els.correctedBox.addEventListener('click', toggleCorrection);
 inset.onModeButton(() => {
   if (mode === 'camera') enterMouseMode();
-  else render(restingEye());
-void enterCameraMode();
+  else void enterCameraMode();
 });
 inset.onFullscreenButton(() => {
   if (document.fullscreenElement) void document.exitFullscreen();
