@@ -4,6 +4,8 @@ import { computeCorrection, viewingStats } from './geometry/projection';
 import { cameraToScreen, layoutToScreenRect } from './geometry/screenSpace';
 import { add, vec3, type Vec3 } from './geometry/vec3';
 import { buildScreenFrame, cameraOffset, settingsFromPreset, type Settings } from './settings';
+import { createSvgRenderer } from './scene/svgRenderer';
+import { buildTargetsScene, rectCenter, viewportRectMm } from './scene/targets';
 import { CameraError, openCamera, stopCamera } from './tracking/camera';
 import { estimateEye, irisMidpoint, type Landmark2D } from './tracking/eyeEstimator';
 import { createFaceTracker, type FaceTracker } from './tracking/faceTracker';
@@ -13,12 +15,18 @@ import { createDebugPanel } from './ui/debugPanel';
 import { getDemoElements, hideBanner, measureLayout, readViewportEnv, setFollowState, showBanner } from './ui/demo';
 import { createInset, type Mode } from './ui/inset';
 import { attachMouseMode, type MouseModeHandle } from './ui/mouseMode';
+import { createSceneSwitch, type SceneName } from './ui/sceneSwitch';
 
 const els = getDemoElements();
 const inset = createInset(els.inset);
 let settings = settingsFromPreset(guessPreset(readViewportEnv()));
 let frame = buildScreenFrame(settings, readViewportEnv());
 let layout = measureLayout(els.correctedBox);
+let scene: SceneName = 'targets';
+document.body.dataset.scene = scene;
+let sceneRect = viewportRectMm(frame, window.innerWidth, window.innerHeight);
+const renderer = createSvgRenderer(els.scene);
+renderer.setScene(buildTargetsScene(sceneRect));
 const smoother = new OneEuroFilter3({ minCutoff: settings.minCutoff, beta: settings.beta, dCutoff: 1 });
 
 /** Following: warp toward the viewer's eye. Static: plain, untransformed text. */
@@ -41,12 +49,17 @@ let loopId = 0;
 let starting = false;
 
 const headlineCenter = () => layoutToScreenRect(layout, frame).center;
-// Resting at the size reference distance gives the identity transform.
-const restingEye = () => add(headlineCenter(), vec3(0, 0, settings.referenceDistanceMm));
+/** What the viewer is looking at: the headline (text scene) or the box's front face. */
+const viewCenter = () => (scene === 'text' ? headlineCenter() : rectCenter(sceneRect));
+// Resting at the size reference distance gives the identity transform (text scene)
+// and the straight-on view (targets scene).
+const restingEye = () => add(viewCenter(), vec3(0, 0, settings.referenceDistanceMm));
 
 function render(eye: Vec3): void {
   lastEye = eye;
-  if (following) {
+  if (scene === 'targets') {
+    renderer.render(following ? eye : restingEye(), frame);
+  } else if (following) {
     // A null result means a degenerate pose: keep the last good transform.
     const t = computeCorrection(eye, layout, frame, { referenceDistanceMm: settings.referenceDistanceMm });
     if (t) lastTransform = t;
@@ -54,7 +67,7 @@ function render(eye: Vec3): void {
   } else {
     els.corrected.style.transform = 'none';
   }
-  const stats = viewingStats(eye, headlineCenter());
+  const stats = viewingStats(eye, viewCenter());
   inset.update({
     mode,
     status,
@@ -195,6 +208,8 @@ async function enterCameraMode(): Promise<void> {
 function remeasure(): void {
   frame = buildScreenFrame(settings, readViewportEnv());
   layout = measureLayout(els.correctedBox);
+  sceneRect = viewportRectMm(frame, window.innerWidth, window.innerHeight);
+  renderer.setScene(buildTargetsScene(sceneRect));
   if (mode === 'mouse' && mouse) mouse.refresh();
   else if (lastEye) render(lastEye);
 }
@@ -232,6 +247,12 @@ window.addEventListener('keydown', (e) => {
 });
 els.correctedBox.addEventListener('click', toggleFollowing);
 els.followToggle.addEventListener('click', toggleFollowing);
+createSceneSwitch(els.topbar, scene).onChange((next) => {
+  scene = next;
+  document.body.dataset.scene = next;
+  // The text stage was display:none, so its layout must be measured now.
+  remeasure();
+});
 // A mouse click must not focus the Tune <summary>, or Space would toggle the panel.
 document.querySelector('#debug > summary')?.addEventListener('mousedown', (e) => e.preventDefault());
 inset.onModeButton(() => {
