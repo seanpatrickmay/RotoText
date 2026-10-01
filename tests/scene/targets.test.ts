@@ -3,6 +3,7 @@ import type { ScreenFrame } from '../../src/geometry/screenSpace';
 import type { Vec3 } from '../../src/geometry/vec3';
 import {
   BOX_DEPTH_MM,
+  buildBoxGrid,
   buildTargetsScene,
   depthOpacity,
   DISC_SEGMENTS,
@@ -227,5 +228,14 @@ describe('fogColor', () => {
         expect(fogColor(hex, depth)).toMatch(/^#[0-9a-f]{6}$/);
       }
     }
+  });
+});
+
+describe('buildBoxGrid', () => {
+  it('is exactly the grid part of the targets scene, without targets or sticks', () => {
+    const grid = buildBoxGrid(rect);
+    expect(grid.length).toBeGreaterThan(0);
+    expect(grid.every((p) => p.kind === 'line' && p.role === 'grid')).toBe(true);
+    expect(buildTargetsScene(rect).slice(0, grid.length)).toEqual(grid);
   });
 });

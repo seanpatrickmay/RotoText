@@ -126,6 +126,11 @@ function stickSegments(top: Vec3): Primitive[] {
   return out;
 }
 
+/** The box walls' grid alone, far → near: the backdrop for Line of Sight. */
+export function buildBoxGrid(rect: ViewportRectMm): Primitive[] {
+  return boxGrid(rect).sort(byDepth);
+}
+
 /** The whole scene in painter's order: grid, then sticks and discs together, each far → near. */
 export function buildTargetsScene(rect: ViewportRectMm): Primitive[] {
   const width = rect.right - rect.left;
@@ -139,7 +144,7 @@ export function buildTargetsScene(rect: ViewportRectMm): Primitive[] {
   }
   // Array.prototype.sort is stable, so each target's discs keep largest-first order. A
   // stick piece never spans a target depth, so a disc paints after the piece behind it.
-  return [...boxGrid(rect).sort(byDepth), ...objects.sort(byDepth)];
+  return [...buildBoxGrid(rect), ...objects.sort(byDepth)];
 }
 
 export function depthOpacity(depth: number): number {
