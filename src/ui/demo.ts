@@ -3,7 +3,7 @@ import type { ElementLayout, ViewportEnv } from '../geometry/screenSpace';
 export interface DemoElements {
   corrected: HTMLElement;
   correctedBox: HTMLElement;
-  correctionState: HTMLElement;
+  followToggle: HTMLButtonElement;
   banner: HTMLElement;
   inset: HTMLElement;
   debugBody: HTMLElement;
@@ -19,7 +19,7 @@ export function getDemoElements(): DemoElements {
   return {
     corrected: byId('corrected'),
     correctedBox: byId('corrected-box'),
-    correctionState: byId('correction-state'),
+    followToggle: byId('follow-toggle') as HTMLButtonElement,
     banner: byId('banner'),
     inset: byId('inset'),
     debugBody: byId('debug-body'),
@@ -32,8 +32,9 @@ export function measureLayout(box: HTMLElement): ElementLayout {
   return { left: r.left, top: r.top, width: r.width, height: r.height };
 }
 
-export function setCorrectionState(els: DemoElements, on: boolean): void {
-  els.correctionState.textContent = on ? 'ON' : 'OFF';
+export function setFollowState(els: DemoElements, following: boolean): void {
+  els.followToggle.textContent = following ? 'Following you' : 'Static';
+  els.followToggle.setAttribute('aria-pressed', String(following));
 }
 
 export function showBanner(els: DemoElements, message: string): void {

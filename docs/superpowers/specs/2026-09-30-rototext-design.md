@@ -15,6 +15,9 @@ screen is seen at a steep angle. A web-app proof of concept for MacBook and iPho
 - Driven by real-time 3D eye position from the front camera.
 - Purpose: **demo / portfolio piece**.
 - Demo must include: an on/off toggle, a side-by-side uncorrected copy, and a tracking inset.
+- *Revised 2026-09-30 after first run:* the text should look **identical** to the viewer from
+  anywhere — same shape **and** same apparent size. The page shows a single centred headline
+  with a **Following you / Static** toggle (the side-by-side copy was removed).
 - Calibration: device presets + tuning sliders (no calibration step for viewers).
 - Approach A: MediaPipe tracking + CSS `matrix3d` on real DOM text.
 
@@ -27,14 +30,15 @@ screen is seen at a steep angle. A web-app proof of concept for MacBook and iPho
 
 **Success criteria**
 - On both a MacBook and an iPhone, a viewer looking from ~45° off-axis sees the corrected
-  headline as visibly rectangular and upright, while the uncorrected copy is visibly skewed.
-- Toggling correction off/on makes the difference obvious instantly.
+  headline as visibly rectangular and upright.
+- Moving between ~30 cm and ~1 m, the headline keeps the same apparent size (within the
+  0.5×–2.5× scale clamp).
+- Toggling Following / Static makes the difference obvious instantly.
 - Motion feels live: no visible jitter when still, no distracting lag when moving.
 - Works with zero setup for a viewer on a listed device; degrades to mouse mode otherwise.
 
 ## 2. Non-goals (v1)
 
-- Constant apparent size as the viewer moves closer/farther (billboard keeps physical size).
 - Three.js / off-axis 3D scene ("window into a box").
 - Landscape iPhone, iPad, multiple viewers, per-eye stereo correction.
 - Credit-card / physical calibration flow.
@@ -73,7 +77,7 @@ In mouse mode, the pointer replaces the first three stages.
 | `src/geometry/devices.ts` | Device presets and auto-guess | yes |
 | `src/geometry/screenSpace.ts` | Camera space → screen space | yes |
 | `src/geometry/projection.ts` | Eye position + element rect → CSS `matrix3d` string | yes |
-| `src/ui/demo.ts` | Page layout, corrected headline, uncorrected copy, toggle | no |
+| `src/ui/demo.ts` | Page elements, Follow/Static toggle state, layout measurement | no |
 | `src/ui/inset.ts` | Webcam preview, eye-point overlay, angle/distance/FPS readout | no |
 | `src/ui/debugPanel.ts` | Preset dropdown and tuning sliders | no |
 | `src/ui/mouseMode.ts` | Pointer/touch → simulated eye position | no |
@@ -170,7 +174,9 @@ For each corrected element with screen-space centre `C` (z = 0) and size `w × h
    normal is at most 75°. Beyond that, the eye is moved back onto the cap (same azimuth).
 2. **Billboard basis.** `n = normalize(E − C)`, `u = normalize(ŷ × n)`, `v = n × u`.
    For a frontal eye this gives `u = x̂`, `v = ŷ`.
-3. **Billboard corners.** `Q = C ± u·w/2 ± v·h/2`.
+3. **Billboard corners.** `Q = C ± u·k·w/2 ± v·k·h/2`, where `k = clamp(|E − C| / D, 0.5, 2.5)`
+   keeps the apparent size constant (`D` = size reference distance, default 500 mm, tunable).
+   At `|E − C| = D` the billboard is the element's own size.
 4. **Project onto the screen** from `E`: `P = E + t·(Q − E)`, `t = E.z / (E.z − Q.z)`.
 5. **Convert** each `P` to element space (CSS px, y down, relative to the element's
    top-left).
@@ -199,7 +205,7 @@ reach toward (or past) the eye's depth, which sends `t` to infinity. If any corn
 | Camera denied / unavailable / insecure context | Banner with the reason; switch to mouse mode |
 | Model or WASM fails to load | Banner; switch to mouse mode |
 | GPU delegate fails | Retry FaceLandmarker with CPU delegate |
-| No face for > 300 ms | Ease the target eye to the point 500 mm directly in front of the headline's centre (`C + 500·ẑ`, which yields the identity transform) over ~0.5 s; inset shows "no face" |
+| No face for > 300 ms | Ease the target eye to the point `D` (the size reference distance) directly in front of the headline's centre (`C + D·ẑ`, which yields the identity transform) over ~0.5 s; inset shows "no face" |
 | Face reacquired | Resume tracking through the smoother (no snap) |
 | Window resize / preset change | Re-measure layout rects and `mmPerCssPx` |
 
@@ -207,8 +213,8 @@ reach toward (or past) the eye's depth, which sends `t` to infinity. If any corn
 (desktop) or two-finger pinch (iPhone) changes distance (default 500 mm); one-finger
 drag on iPhone moves the eye. A button in the inset switches back to camera mode.
 
-**Toggle:** Space (desktop) or tapping the headline (iPhone) sets the corrected
-element's transform to `none`; a label shows "Correction: ON / OFF".
+**Toggle:** a **Following you / Static** button under the headline, Space (desktop), or tapping
+the headline (iPhone). Static sets the headline's transform to `none`.
 
 **HTTPS:** `vite --host` with `@vitejs/plugin-basic-ssl` for LAN testing on iPhone
 (accept the self-signed certificate once). Production build is a static `dist/`.
@@ -235,8 +241,9 @@ element's transform to `none`; a label shows "Correction: ON / OFF".
 2. FOV tune: sit at a tape-measured 50 cm; adjust HFOV until the distance readout reads
    50 cm; record the value back into the preset.
 3. Distance check at 30 cm and 80 cm: readout within ±15%.
-4. At ~45° off-axis, the corrected headline looks rectangular and upright; the
-   uncorrected copy looks skewed; toggling makes the difference obvious.
+4. At ~45° off-axis, the headline looks rectangular and upright when Following and skewed
+   when Static; toggling makes the difference obvious. Stepping back from 30 cm to 1 m,
+   the headline keeps the same apparent size.
 5. Cover the camera: text eases back to frontal; uncover: tracking resumes without a snap.
 6. Deny camera permission: banner + working mouse mode.
 

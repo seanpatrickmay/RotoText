@@ -10,11 +10,9 @@ import { createFaceTracker, type FaceTracker } from './tracking/faceTracker';
 import { OneEuroFilter3 } from './tracking/smoothing';
 import { initialTargetState, updateTarget, type TargetStatus } from './tracking/targetController';
 import { createDebugPanel } from './ui/debugPanel';
-import { getDemoElements, hideBanner, measureLayout, readViewportEnv, setCorrectionState, showBanner } from './ui/demo';
+import { getDemoElements, hideBanner, measureLayout, readViewportEnv, setFollowState, showBanner } from './ui/demo';
 import { createInset, type Mode } from './ui/inset';
 import { attachMouseMode, type MouseModeHandle } from './ui/mouseMode';
-
-const RESTING_DISTANCE_MM = 500;
 
 const els = getDemoElements();
 const inset = createInset(els.inset);
@@ -23,7 +21,8 @@ let frame = buildScreenFrame(settings, readViewportEnv());
 let layout = measureLayout(els.correctedBox);
 const smoother = new OneEuroFilter3({ minCutoff: settings.minCutoff, beta: settings.beta, dCutoff: 1 });
 
-let correctionOn = true;
+/** Following: warp toward the viewer's eye. Static: plain, untransformed text. */
+let following = true;
 let lastTransform = 'none';
 let lastEye: Vec3 | null = null;
 
@@ -42,13 +41,14 @@ let loopId = 0;
 let starting = false;
 
 const headlineCenter = () => layoutToScreenRect(layout, frame).center;
-const restingEye = () => add(headlineCenter(), vec3(0, 0, RESTING_DISTANCE_MM));
+// Resting at the size reference distance gives the identity transform.
+const restingEye = () => add(headlineCenter(), vec3(0, 0, settings.referenceDistanceMm));
 
 function render(eye: Vec3): void {
   lastEye = eye;
-  if (correctionOn) {
+  if (following) {
     // A null result means a degenerate pose: keep the last good transform.
-    const t = computeCorrection(eye, layout, frame);
+    const t = computeCorrection(eye, layout, frame, { referenceDistanceMm: settings.referenceDistanceMm });
     if (t) lastTransform = t;
     els.corrected.style.transform = lastTransform;
   } else {
@@ -199,9 +199,9 @@ function remeasure(): void {
   else if (lastEye) render(lastEye);
 }
 
-function toggleCorrection(): void {
-  correctionOn = !correctionOn;
-  setCorrectionState(els, correctionOn);
+function toggleFollowing(): void {
+  following = !following;
+  setFollowState(els, following);
   if (lastEye) render(lastEye);
 }
 
@@ -228,9 +228,10 @@ window.addEventListener('keydown', (e) => {
   if (e.code !== 'Space' || e.repeat) return;
   if (e.target instanceof Element && e.target.closest('input, select, textarea, button, summary')) return;
   e.preventDefault();
-  toggleCorrection();
+  toggleFollowing();
 });
-els.correctedBox.addEventListener('click', toggleCorrection);
+els.correctedBox.addEventListener('click', toggleFollowing);
+els.followToggle.addEventListener('click', toggleFollowing);
 // A mouse click must not focus the Tune <summary>, or Space would toggle the panel.
 document.querySelector('#debug > summary')?.addEventListener('mousedown', (e) => e.preventDefault());
 inset.onModeButton(() => {

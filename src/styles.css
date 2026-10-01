@@ -29,43 +29,27 @@ body {
 #stage {
   height: 100dvh;
   display: flex;
-  flex-direction: row;
-}
-
-.panel {
-  flex: 1;
-  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
+  gap: 1.5rem;
   padding: 1rem;
 }
 
-.panel + .panel {
-  border-left: 1px solid var(--rule);
-}
-
-@media (max-aspect-ratio: 1/1) {
-  #stage {
-    flex-direction: column;
-  }
-  .panel + .panel {
-    border-left: none;
-    border-top: 1px solid var(--rule);
-  }
-}
-
-.label {
-  margin: 0;
-  font-size: 0.8rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-#correction-state {
+#follow-toggle {
+  font: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  padding: 0.45rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--panel);
   color: var(--accent);
+  cursor: pointer;
+}
+
+#follow-toggle[aria-pressed='false'] {
+  color: var(--muted);
 }
 
 /* The box is never transformed, so its rect is the headline's layout rect. */
